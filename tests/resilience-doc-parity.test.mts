@@ -73,10 +73,14 @@ const DOCUMENTATION_PATH = resolve(here, '../docs/documentation.mdx');
 const FEATURES_PATH = resolve(here, '../docs/features.mdx');
 const STATIC_SEED_SCRIPT_PATH = resolve(here, '../scripts/seed-resilience-static.mjs');
 const HEALTH_API_PATH = resolve(here, '../api/health.js');
+const SEED_RESILIENCE_SCORES_PATH = resolve(here, '../scripts/seed-resilience-scores.mjs');
+const RESILIENCE_SHARED_PATH = resolve(here, '../server/worldmonitor/resilience/v1/_shared.ts');
 const RESILIENCE_OPENAPI_YAML_PATH = resolve(here, '../docs/api/ResilienceService.openapi.yaml');
 const RESILIENCE_OPENAPI_JSON_PATH = resolve(here, '../docs/api/ResilienceService.openapi.json');
 const BUNDLED_OPENAPI_YAML_PATH = resolve(here, '../docs/api/worldmonitor.openapi.yaml');
 const docText = readFileSync(DOC_PATH, 'utf8');
+const seedResilienceScoresText = readFileSync(SEED_RESILIENCE_SCORES_PATH, 'utf8');
+const resilienceSharedText = readFileSync(RESILIENCE_SHARED_PATH, 'utf8');
 const indicatorSourceCatalogText = readFileSync(INDICATOR_SOURCE_CATALOG_PATH, 'utf8');
 const staticSeedScriptText = readFileSync(STATIC_SEED_SCRIPT_PATH, 'utf8');
 const healthApiText = readFileSync(HEALTH_API_PATH, 'utf8');
@@ -110,6 +114,10 @@ const GENERATED_OPENAPI_SURFACES = [
     text: readFileSync(BUNDLED_OPENAPI_YAML_PATH, 'utf8'),
   },
 ];
+const RESILIENCE_V23_CACHE_BUMP_BATCH = {
+  previousVersion: 22,
+  currentVersion: 23,
+};
 const ACTIVE_ENERGY_V2_INDICATOR_WEIGHTS = new Map([
   ['importedFossilDependence', 0.35],
   ['lowCarbonGenerationShare', 0.20],
@@ -701,6 +709,54 @@ describe('methodology doc parity (Plan 2026-04-26-002 §U8)', () => {
     );
   });
 
+  it('v23 cache-bump prose names the same batched scorer changes in seeder, server, and docs', () => {
+    const { previousVersion, currentVersion } = RESILIENCE_V23_CACHE_BUMP_BATCH;
+    const surfaces = [
+      [
+        'scripts/seed-resilience-scores.mjs',
+        extractCommentBlockForCacheBump(
+          seedResilienceScoresText,
+          'RESILIENCE_SCORE_CACHE_PREFIX',
+          previousVersion,
+          currentVersion,
+        ),
+      ],
+      [
+        'server/worldmonitor/resilience/v1/_shared.ts',
+        extractCommentBlockForCacheBump(
+          resilienceSharedText,
+          'RESILIENCE_SCORE_CACHE_PREFIX',
+          previousVersion,
+          currentVersion,
+        ),
+      ],
+      [
+        'docs/methodology/country-resilience-index.mdx',
+        extractBoldParagraph(docText, '**Cache prefix bumps.**'),
+      ],
+    ] as const;
+
+    for (const [label, cacheBumpProse] of surfaces) {
+      assert.ok(
+        cacheBumpProse.includes(`v${previousVersion}`) && cacheBumpProse.includes(`v${currentVersion}`),
+        `${label} must describe the v${previousVersion} -> v${currentVersion} resilience cache bump`,
+      );
+      assert.ok(
+        cacheBumpProse.includes('import-HHI') &&
+          /certainty[\s\S]{0,80}derat|derat[\s\S]{0,80}certainty/.test(cacheBumpProse),
+        `${label} v23 cache-bump prose must mention the import-HHI source-year certainty derate`,
+      );
+      assert.ok(
+        cacheBumpProse.includes('P3-8') && cacheBumpProse.includes('observed-quiet'),
+        `${label} v23 cache-bump prose must mention P3-8 outage observed-quiet semantics`,
+      );
+      assert.ok(
+        cacheBumpProse.includes('WTO') && /severity scor|scor[\s\S]{0,80}severity/.test(cacheBumpProse),
+        `${label} v23 cache-bump prose must mention WTO trade-policy severity scoring`,
+      );
+    }
+  });
+
   it('indicator source catalog labels energy-v2 rows as active and legacy-only rows as replaced', () => {
     for (const id of ACTIVE_ENERGY_V2_INDICATOR_WEIGHTS.keys()) {
       const block = extractIndicatorSourceBlock(indicatorSourceCatalogText, id);
@@ -903,6 +959,37 @@ function extractIndicatorTextRowsForSection(
     });
   }
   return rows;
+}
+
+function extractBoldParagraph(text: string, startMarker: string): string {
+  const startIndex = text.indexOf(startMarker);
+  assert.notEqual(startIndex, -1, `Start marker "${startMarker}" not found.`);
+
+  const nextBoldParagraphMatch = /\n\n\*\*/.exec(text.slice(startIndex + startMarker.length));
+  assert.ok(nextBoldParagraphMatch, `Next bold paragraph marker not found after "${startMarker}".`);
+
+  return text.slice(startIndex, startIndex + startMarker.length + nextBoldParagraphMatch.index);
+}
+
+function extractCommentBlockForCacheBump(
+  text: string,
+  exportName: string,
+  previousVersion: number,
+  currentVersion: number,
+): string {
+  const exportIndex = text.indexOf(`export const ${exportName}`);
+  assert.notEqual(exportIndex, -1, `Export "${exportName}" not found.`);
+
+  const blockStart = text.lastIndexOf(`// v${previousVersion}`, exportIndex);
+  assert.notEqual(
+    blockStart,
+    -1,
+    `v${previousVersion} -> v${currentVersion} comment block not found before "${exportName}".`,
+  );
+
+  const nextBumpIndex = text.indexOf(`\n// v${currentVersion}`, blockStart + 1);
+  const blockEnd = nextBumpIndex !== -1 && nextBumpIndex < exportIndex ? nextBumpIndex : exportIndex;
+  return text.slice(blockStart, blockEnd);
 }
 
 function extractSectionText(text: string, sectionHeading: string): string {
