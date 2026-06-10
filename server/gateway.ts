@@ -363,6 +363,23 @@ export type GatewayCtx = { waitUntil: (p: Promise<unknown>) => void };
 const POST_TO_GET_MAX_BODY_BYTES = 1_048_576;
 const POST_TO_GET_MAX_ARRAY_VALUES_PER_KEY = 200;
 
+function hasConfiguredEnvValue(value: string | undefined): boolean {
+  return value !== undefined && value !== '';
+}
+
+export function assertMcpHmacSecretPairing(
+  env: Record<string, string | undefined> = process.env,
+): void {
+  if (
+    hasConfiguredEnvValue(env.MCP_PRO_GRANT_HMAC_SECRET) &&
+    !hasConfiguredEnvValue(env.MCP_INTERNAL_HMAC_SECRET)
+  ) {
+    throw new Error(
+      'MCP HMAC configuration invalid: MCP_PRO_GRANT_HMAC_SECRET is set but MCP_INTERNAL_HMAC_SECRET is not configured',
+    );
+  }
+}
+
 function isPostToGetCompatibleBodySize(headers: Headers): boolean {
   const rawContentLength = headers.get('Content-Length');
   if (rawContentLength === null || !/^\d+$/.test(rawContentLength)) return false;
@@ -426,6 +443,7 @@ export async function isRelayWarmPingRequest(request: Request, pathname: string)
 export function createDomainGateway(
   routes: RouteDescriptor[],
 ): (req: Request, ctx?: GatewayCtx) => Promise<Response> {
+  assertMcpHmacSecretPairing();
   const router = createRouter(routes);
 
   return async function handler(originalRequest: Request, ctx?: GatewayCtx): Promise<Response> {

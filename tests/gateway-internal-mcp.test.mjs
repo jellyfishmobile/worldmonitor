@@ -269,6 +269,28 @@ describe('gateway internal-MCP HMAC verify — happy paths', () => {
 });
 
 // ===========================================================================
+// COLD-START CONFIG VALIDATION
+// ===========================================================================
+describe('gateway internal-MCP HMAC verify — cold-start config validation', () => {
+  it('throws at gateway construction when Pro MCP grant signing is configured without the internal verifier secret', () => {
+    process.env.MCP_PRO_GRANT_HMAC_SECRET = 'test-pro-grant-hmac-secret';
+    delete process.env.MCP_INTERNAL_HMAC_SECRET;
+
+    assert.throws(
+      () => makeGateway(),
+      /MCP_PRO_GRANT_HMAC_SECRET is set but MCP_INTERNAL_HMAC_SECRET is not configured/,
+    );
+  });
+
+  it('does not require MCP HMAC secrets when Pro MCP grant signing is not configured', () => {
+    delete process.env.MCP_PRO_GRANT_HMAC_SECRET;
+    delete process.env.MCP_INTERNAL_HMAC_SECRET;
+
+    assert.doesNotThrow(() => makeGateway());
+  });
+});
+
+// ===========================================================================
 // ERROR PATHS — 401s
 // ===========================================================================
 describe('gateway internal-MCP HMAC verify — error paths', () => {
@@ -449,6 +471,7 @@ describe('gateway internal-MCP HMAC verify — error paths', () => {
   });
 
   it('MCP_INTERNAL_HMAC_SECRET unset → 500 CONFIGURATION on the HMAC-attempt path', async () => {
+    delete process.env.MCP_PRO_GRANT_HMAC_SECRET;
     delete process.env.MCP_INTERNAL_HMAC_SECRET;
     const handler = makeGateway();
     const req = new Request('https://api.worldmonitor.app/api/news/v1/summarize-article', {
@@ -467,6 +490,7 @@ describe('gateway internal-MCP HMAC verify — error paths', () => {
   });
 
   it('legacy wm_ caller (no internal-MCP headers) → unaffected by missing MCP_INTERNAL_HMAC_SECRET', async () => {
+    delete process.env.MCP_PRO_GRANT_HMAC_SECRET;
     delete process.env.MCP_INTERNAL_HMAC_SECRET;
     const handler = makeGateway();
     // wm_-key flow: send a valid WORLDMONITOR_VALID_KEYS key on a non-tier-gated route.
