@@ -133,4 +133,130 @@ describe('aviation budget: call sites are wired to the cap', () => {
     // Same Redis key format as the server helper — they MUST share the counter.
     assert.match(src, /aviation:avstack:calls:\$\{ym\}/);
   });
+
+  it('server budget helper uses the same key format + UTC month math as the seeder', () => {
+    // Cross-file drift would split the counter and silently defeat the shared
+    // ceiling — pin both halves so a future edit to either fails the test.
+    const srv = read('server/worldmonitor/aviation/v1/_avstack-budget.ts');
+    assert.match(srv, /aviation:avstack:calls:/);
+    assert.match(srv, /getUTCFullYear\(\)/);
+    assert.match(srv, /getUTCMonth\(\)/);
+    const seeder = read('scripts/seed-aviation.mjs');
+    assert.match(seeder, /getUTCFullYear\(\)/);
+    assert.match(seeder, /getUTCMonth\(\)/);
+  });
+
+  it('seeder fetchIntl marks its throw nonRetryable so runSeed cannot 4x the paid sweep', () => {
+    // Regression guard for the retry-multiplier undercount: without this tag,
+    // withRetry re-runs the full airport sweep up to 4x on an unhealthy tick
+    // while the budget counter only saw one reserved batch.
+    const src = read('scripts/seed-aviation.mjs');
+    assert.match(src, /err\.nonRetryable = true/);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// 3. Behavioural — seeder helpers (scripts/seed-aviation.mjs)
+// ────────────────────────────────────────────────────────────────────────────
+// The seeder's freshness gate is the PRIMARY normal-spend control and its
+// budget backstop is the hard ceiling on the biggest spender — both were
+// previously only regex-checked. Importing is safe: seed-aviation.mjs has an
+// isMain guard, so module load does not fire the seed run.
+
+describe('aviation budget: seeder helpers behave', () => {
+  let intlIsFresh, reserveAviationStackBudget;
+
+  before(async () => {
+    process.env.UPSTASH_REDIS_REST_URL = 'http://localhost:0';
+    process.env.UPSTASH_REDIS_REST_TOKEN = 'test-token';
+    delete process.env.LOCAL_API_MODE;
+    // Leave AVIATIONSTACK_MIN_REFRESH_MIN unset so the module loads the default
+    // 55-min gate (the const is captured at import time).
+    delete process.env.AVIATIONSTACK_MIN_REFRESH_MIN;
+    ({ intlIsFresh, reserveAviationStackBudget } = await import('../scripts/seed-aviation.mjs'));
+  });
+
+  afterEach(() => {
+    mock.restoreAll();
+    delete process.env.AVIATIONSTACK_MONTHLY_BUDGET;
+  });
+
+  // -- intlIsFresh: skip when last publish is younger than the gate --
+
+  function mockSeedMeta(metaValue) {
+    mock.method(globalThis, 'fetch', async (url) => {
+      // readCanonicalValue → redisGet → GET /get/<key>
+      if (String(url).includes('/get/')) {
+        return { ok: true, json: async () => ({ result: metaValue == null ? null : JSON.stringify(metaValue) }) };
+      }
+      return { ok: true, json: async () => [{ result: 1 }] };
+    });
+  }
+
+  it('returns true (skip the fetch) when last publish is younger than the gate', async () => {
+    mockSeedMeta({ fetchedAt: Date.now() - 10 * 60_000, recordCount: 4 });
+    assert.equal(await intlIsFresh(), true);
+  });
+
+  it('returns false (fetch) when last publish is older than the gate', async () => {
+    mockSeedMeta({ fetchedAt: Date.now() - 90 * 60_000, recordCount: 4 });
+    assert.equal(await intlIsFresh(), false);
+  });
+
+  it('returns false (fetch) when seed-meta is missing', async () => {
+    mockSeedMeta(null);
+    assert.equal(await intlIsFresh(), false);
+  });
+
+  it('returns false (fetch) on a non-numeric fetchedAt', async () => {
+    mockSeedMeta({ fetchedAt: 'not-a-number', recordCount: 4 });
+    assert.equal(await intlIsFresh(), false);
+  });
+
+  it('returns false (fetch) on a future fetchedAt (clock skew)', async () => {
+    mockSeedMeta({ fetchedAt: Date.now() + 60 * 60_000, recordCount: 4 });
+    assert.equal(await intlIsFresh(), false);
+  });
+
+  // -- reserveAviationStackBudget: hard ceiling, conservative counter --
+
+  function mockBudgetCounter() {
+    const state = { counter: 0 };
+    mock.method(globalThis, 'fetch', async (_url, opts) => {
+      const cmds = JSON.parse(opts.body);
+      const results = cmds.map((cmd) => {
+        const [verb, , n] = cmd;
+        if (verb === 'INCRBY') { state.counter += Number(n); return { result: state.counter }; }
+        if (verb === 'DECRBY') { state.counter -= Number(n); return { result: state.counter }; }
+        return { result: 1 };
+      });
+      return { ok: true, json: async () => results };
+    });
+    return state;
+  }
+
+  it('allows the seed batch under the hard cap, denies once it would breach, and refunds on deny', async () => {
+    process.env.AVIATIONSTACK_MONTHLY_BUDGET = '100';
+    const state = mockBudgetCounter();
+    // 50 + 50 = 100 (== cap, allowed since deny is total > cap).
+    assert.equal(await reserveAviationStackBudget(50), true);
+    assert.equal(await reserveAviationStackBudget(50), true);
+    assert.equal(state.counter, 100);
+    // Next batch would push to 150 > 100 → denied, and refunded back to the cap.
+    assert.equal(await reserveAviationStackBudget(50), false);
+    assert.equal(state.counter, 100);
+  });
+
+  it('treats a zero MONTHLY budget as disabled (always allow, no Redis I/O)', async () => {
+    process.env.AVIATIONSTACK_MONTHLY_BUDGET = '0';
+    const state = mockBudgetCounter();
+    assert.equal(await reserveAviationStackBudget(999), true);
+    assert.equal(state.counter, 0);
+  });
+
+  it('fails open when the budget pipeline throws', async () => {
+    process.env.AVIATIONSTACK_MONTHLY_BUDGET = '100';
+    mock.method(globalThis, 'fetch', async () => { throw new Error('ECONNREFUSED'); });
+    assert.equal(await reserveAviationStackBudget(50), true);
+  });
 });

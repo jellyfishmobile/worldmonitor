@@ -1137,7 +1137,7 @@ async function runNewsSideCar() {
 // than being suppressed by the gate. Fail-open: any read error / missing meta /
 // non-numeric fetchedAt → false (fetch), so we never trade freshness for a
 // flaky Redis read.
-async function intlIsFresh() {
+export async function intlIsFresh() {
   if (INTL_MIN_REFRESH_MIN <= 0) return false;
   try {
     const meta = await readCanonicalValue(INTL_META_KEY);
@@ -1152,17 +1152,17 @@ async function intlIsFresh() {
 }
 
 // Monthly AviationStack budget backstop. Mirrors reserveAviationStackCalls() in
-// server/worldmonitor/aviation/v1/_shared.ts — SAME Redis key + env names so the
-// seeder and the request-time RPCs share one counter and one hard ceiling.
-// Keep the two in lockstep. 'seed' kind reserves against the full
-// AVIATIONSTACK_MONTHLY_BUDGET; request-time stops earlier (see _shared.ts),
-// reserving headroom for this curated feed.
-function avstackMonthlyBudget() {
+// server/worldmonitor/aviation/v1/_avstack-budget.ts — SAME Redis key + env
+// names so the seeder and the request-time RPCs share one counter and one hard
+// ceiling. Keep the two in lockstep. 'seed' kind reserves against the full
+// AVIATIONSTACK_MONTHLY_BUDGET; request-time stops earlier (see
+// _avstack-budget.ts), reserving headroom for this curated feed.
+export function avstackMonthlyBudget() {
   const raw = Number(process.env.AVIATIONSTACK_MONTHLY_BUDGET ?? 130_000);
   return Number.isFinite(raw) && raw >= 0 ? raw : 130_000;
 }
 
-async function reserveAviationStackBudget(count) {
+export async function reserveAviationStackBudget(count) {
   const cap = avstackMonthlyBudget();
   if (cap <= 0 || count <= 0) return true; // disabled
   const { url, token } = getRedisCredentials();
@@ -1206,7 +1206,17 @@ async function fetchIntl() {
     const why = result.skipped
       ? 'no AVIATIONSTACK_API key'
       : 'systemic fetch failure (failures > successes)';
-    throw new Error(`intl unpublishable: ${why}`);
+    // nonRetryable is load-bearing for the budget cap. Without it, runSeed's
+    // withRetry re-runs fetchIntl up to 4x on an unhealthy tick, and EACH run
+    // sweeps the FULL airport list again — so a degraded upstream costs up to
+    // 4x the paid AviationStack calls while the budget counter (reserved once
+    // in main()) only saw one batch, letting actual spend run past the ceiling
+    // exactly when the cap matters most. Tagging the error makes withRetry exit
+    // after one attempt, keeping actual calls bounded by the single
+    // reservation. We lose nothing: the seeder already re-runs every cron tick.
+    const err = new Error(`intl unpublishable: ${why}`);
+    err.nonRetryable = true;
+    throw err;
   }
   return result;
 }
@@ -1301,7 +1311,14 @@ async function main() {
   });
 }
 
-main().catch((err) => {
+// isMain guard so tests/agents can `import` the pure helpers (intlIsFresh,
+// reserveAviationStackBudget, declareRecords) without firing the side-cars +
+// runSeed on module load (which would touch Redis and process.exit). Matches
+// the repo convention (see scripts/seed-token-panels.mjs, seed-cyber-threats).
+// Railway still runs the seed via `node scripts/seed-aviation.mjs` because
+// argv[1] resolves to this file.
+const isMain = process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/^.*[\\/]/, ''));
+if (isMain) main().catch((err) => {
   const cause = err.cause ? ` (cause: ${err.cause.message || err.cause.code || err.cause})` : '';
   console.error('FATAL:', (err.message || err) + cause);
   process.exit(1);
