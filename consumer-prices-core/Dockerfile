@@ -8,10 +8,15 @@ WORKDIR /app
 # point-releases (libgnutls30 -> 3.7.9-2+deb12u7), which clears the critical
 # GnuTLS CVEs Snyk reports against this image.
 #
-# Install Playwright dependencies. Tolerate transient Ubuntu mirror failures
-# (2026-04-17: noble-security CDN hash-sum mismatch blocked all Railway builds).
-RUN (apt-get update || true) \
-    && apt-get upgrade -y --no-install-recommends \
+# Every network step tolerates a hard mirror outage so a transient Railway build
+# failure can't block deploys (2026-04-17: noble-security CDN hash-sum mismatch
+# blocked all Railway builds). `apt-get update` is retried so the refresh is
+# reliable before the security upgrade; the upgrade then carries the same `|| true`
+# tolerance that `update` already had and `install` keeps via `--fix-missing`, so
+# this step has no less download resilience than the original. The post-deploy
+# Snyk scan is the backstop that flags a libgnutls30 left un-upgraded by an outage.
+RUN (for i in 1 2 3; do apt-get update && break || sleep 5; done) \
+    && (apt-get upgrade -y --no-install-recommends || true) \
     && apt-get install -y --fix-missing \
     chromium \
     fonts-liberation \
