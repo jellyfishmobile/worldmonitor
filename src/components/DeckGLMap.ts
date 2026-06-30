@@ -153,6 +153,7 @@ import type { WebcamEntry, WebcamCluster } from '@/generated/client/worldmonitor
 import { fetchWebcamImage } from '@/services/webcams';
 import { setTrustedHtml, trustedHtml } from '@/utils/dom-utils';
 import { summarizeRenderTiming, formatRenderTiming } from '@/components/map/render-timing';
+import { DeferredHeavyCommit } from '@/components/map/deferred-layer-commit';
 import {
   createCountryClickGestureTracker,
   finishCountryClickGesture,
@@ -705,6 +706,19 @@ export class DeckGLMap {
   private renderPaused = false;
   private renderPending = false;
   private webglLost = false;
+  /** Stable empty GeoJSON for the immediate (pre-defer) frame of a heavy layer (#4558). */
+  private readonly emptyHeavyData: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
+  /**
+   * Two-phase heavy-layer commit (#4558). On the interaction-attributed frame
+   * heavy layers render their previously-committed (or empty) data; the real
+   * data is committed on a deferred (yielded) frame so the deck.gl tessellation
+   * lands off the measured frame. The gate skips the defer when data is unchanged.
+   */
+  private readonly heavyGate = new DeferredHeavyCommit<unknown>({
+    schedule: (fn) => { const id = setTimeout(fn, 0); return () => clearTimeout(id); },
+    isAlive: () => !this.renderPaused && !this.webglLost && !!this.maplibreMap,
+    onCommit: () => this.updateLayers(true),
+  });
   private destroyed = false;
   private usedFallbackStyle = false;
   private readonly chrome: boolean;
@@ -1720,7 +1734,7 @@ export class DeckGLMap {
     return zoom >= threshold.minZoom;
   }
 
-  private buildLayers(): LayersList {
+  private buildLayers(deferHeavy = false): LayersList {
     const startTime = performance.now();
     // Refresh theme-aware overlay colors on each rebuild
     COLORS = getOverlayColors();
@@ -1831,9 +1845,12 @@ export class DeckGLMap {
       this.layerCache.delete('live-tankers-layer');
     }
 
-    // Conflict zones layer
+    // Conflict zones layer — heavy GeoJson tessellation routed through the
+    // two-phase commit so it lands off the interaction frame (#4558).
     if (mapLayers.conflicts) {
-      layers.push(this.createConflictZonesLayer());
+      layers.push(this.createConflictZonesLayer(
+        this.resolveHeavyData('conflict', () => this.buildConflictZoneGeoJson(), deferHeavy, this.emptyHeavyData),
+      ));
     }
 
 
@@ -2636,14 +2653,30 @@ export class DeckGLMap {
     return this.conflictZoneGeoJson;
   }
 
-  private createConflictZonesLayer(): GeoJsonLayer {
+  /**
+   * Two-phase heavy-layer data (#4558). On the immediate (deferHeavy) frame,
+   * stage the freshly-computed data and render the previously-committed value
+   * (or `empty` on first build) so the heavy deck.gl tessellation is deferred;
+   * the gate's deferred pass (deferHeavy=false) renders the committed real data.
+   * Unchanged data short-circuits in the gate (no extra frame).
+   */
+  private resolveHeavyData<T>(key: string, compute: () => T, deferHeavy: boolean, empty: T): T {
+    const real = compute();
+    if (deferHeavy) {
+      this.heavyGate.stage(key, real);
+      return (this.heavyGate.present(key) as T | undefined) ?? empty;
+    }
+    return (this.heavyGate.present(key) as T | undefined) ?? real;
+  }
+
+  private createConflictZonesLayer(data: GeoJSON.FeatureCollection): GeoJsonLayer {
     const cacheKey = this.countriesGeoJsonData
       ? 'conflict-zones-layer-country-geometry'
       : 'conflict-zones-layer';
 
     const layer = new GeoJsonLayer({
       id: cacheKey,
-      data: this.buildConflictZoneGeoJson(),
+      data,
       filled: true,
       stroked: true,
       getFillColor: () => COLORS.conflict,
@@ -5745,14 +5778,16 @@ export class DeckGLMap {
     }
   }
 
-  private updateLayers(): void {
+  private updateLayers(deferred = false): void {
     if (this.renderPaused || this.webglLost || !this.maplibreMap) return;
     const startTime = performance.now();
     let jsBuild = 0;
     let layerCount = 0;
     try {
       const buildStart = performance.now();
-      const built = this.buildLayers();
+      // Immediate pass defers heavy data (deferHeavy=true); the gate's deferred
+      // pass (deferred=true) commits the real heavy data (#4558).
+      const built = this.buildLayers(!deferred);
       jsBuild = performance.now() - buildStart;
       layerCount = built.length;
       this.deckOverlay?.setProps({ layers: built });
