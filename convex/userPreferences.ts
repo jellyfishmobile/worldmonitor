@@ -2,15 +2,42 @@ import { ConvexError, v } from "convex/values";
 import { internalQuery, mutation, query } from "./_generated/server";
 import { CURRENT_PREFS_SCHEMA_VERSION, MAX_PREFS_BLOB_SIZE } from "./constants";
 
+/**
+ * The `by_user_variant` index is non-unique (Convex has no unique constraints),
+ * so two racing first-writes for the same (userId, variant) can create
+ * duplicate rows. `.unique()` then THROWS on every subsequent read/write for
+ * that identity — surfacing as a Convex `InternalServerError` the edge
+ * misclassifies as transient, so the client retries forever and never saves
+ * (#4567). Read tolerantly instead: the highest-`syncVersion` row (tie:
+ * highest `updatedAt`) is canonical; `setPreferences` also deletes the stale
+ * duplicates in its (transactional) mutation to self-heal.
+ */
+function pickCanonicalPrefRow<T extends { syncVersion: number; updatedAt: number }>(
+  rows: T[],
+): T | null {
+  let best: T | null = null;
+  for (const r of rows) {
+    if (
+      !best ||
+      r.syncVersion > best.syncVersion ||
+      (r.syncVersion === best.syncVersion && r.updatedAt > best.updatedAt)
+    ) {
+      best = r;
+    }
+  }
+  return best;
+}
+
 export const getPreferencesByUserId = internalQuery({
   args: { userId: v.string(), variant: v.string() },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const rows = await ctx.db
       .query("userPreferences")
       .withIndex("by_user_variant", (q) =>
         q.eq("userId", args.userId).eq("variant", args.variant),
       )
-      .unique();
+      .collect();
+    return pickCanonicalPrefRow(rows);
   },
 });
 
@@ -20,12 +47,13 @@ export const getPreferences = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
     const userId = identity.subject;
-    return await ctx.db
+    const rows = await ctx.db
       .query("userPreferences")
       .withIndex("by_user_variant", (q) =>
         q.eq("userId", userId).eq("variant", args.variant),
       )
-      .unique();
+      .collect();
+    return pickCanonicalPrefRow(rows);
   },
 });
 
@@ -71,12 +99,16 @@ export const setPreferences = mutation({
       });
     }
 
-    const existing = await ctx.db
+    // Tolerate duplicate (userId, variant) rows: read all and treat the
+    // highest-syncVersion row as canonical instead of `.unique()` (which throws
+    // → InternalServerError → retry loop, #4567).
+    const rows = await ctx.db
       .query("userPreferences")
       .withIndex("by_user_variant", (q) =>
         q.eq("userId", userId).eq("variant", args.variant),
       )
-      .unique();
+      .collect();
+    const existing = pickCanonicalPrefRow(rows);
 
     if (existing && existing.syncVersion !== args.expectedSyncVersion) {
       // CAS-guard "no-op". Returns rather than throws — see SetPreferencesResult
@@ -99,6 +131,11 @@ export const setPreferences = mutation({
         updatedAt: Date.now(),
         syncVersion: nextSyncVersion,
       });
+      // Self-heal: delete any stale duplicate rows so this identity stops
+      // hitting the `.unique()`/canonical path with >1 row (#4567).
+      for (const r of rows) {
+        if (r._id !== existing._id) await ctx.db.delete(r._id);
+      }
     } else {
       await ctx.db.insert("userPreferences", {
         userId,
