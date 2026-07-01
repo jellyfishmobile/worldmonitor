@@ -1,6 +1,12 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildSentryContext } from '../api/user-prefs.ts';
+import {
+  USER_PREFS_WRITE_RATE_LIMIT,
+  buildSentryContext,
+  buildUserPrefsWriteRateLimitIdentifier,
+  userPrefsWriteRateLimitDegradedResponse,
+  userPrefsWriteRateLimitExceededResponse,
+} from '../api/user-prefs.ts';
 
 // ---------------------------------------------------------------------------
 // buildSentryContext — Sentry tag/extra/fingerprint shape for /api/user-prefs
@@ -240,5 +246,47 @@ describe('buildSentryContext — backwards-compat for non-CONFLICT callers', () 
     const ctx = buildSentryContext(err, err.message, baseOpts);
     assert.equal(typeof ctx.extra.messageHead, 'string');
     assert.match(ctx.extra.messageHead as string, /^quite a long/);
+  });
+});
+
+
+describe('user-prefs POST rate limit helpers (#4567)', () => {
+  it('keys the write budget by authenticated user, not variant', () => {
+    assert.equal(buildUserPrefsWriteRateLimitIdentifier('user_abc123'), 'user:user_abc123');
+  });
+
+  it('builds a fail-closed degraded response with retry guidance and CORS', async () => {
+    const res = userPrefsWriteRateLimitDegradedResponse({
+      'Access-Control-Allow-Origin': 'https://worldmonitor.app',
+    });
+
+    assert.equal(res.status, 503);
+    assert.equal(res.headers.get('X-RateLimit-Mode'), 'degraded');
+    assert.equal(res.headers.get('Retry-After'), '5');
+    assert.equal(res.headers.get('Access-Control-Allow-Origin'), 'https://worldmonitor.app');
+    const body = (await res.json()) as { error?: string };
+    assert.equal(body.error, 'RATE_LIMIT_DEGRADED');
+  });
+
+  it('builds a 429 throttle response with standard rate-limit headers', async () => {
+    const realNow = Date.now;
+    Date.now = () => 1_000;
+    try {
+      const res = userPrefsWriteRateLimitExceededResponse(
+        { limit: USER_PREFS_WRITE_RATE_LIMIT, reset: 11_000 },
+        { 'Access-Control-Allow-Origin': 'https://worldmonitor.app' },
+      );
+
+      assert.equal(res.status, 429);
+      assert.equal(res.headers.get('X-RateLimit-Limit'), String(USER_PREFS_WRITE_RATE_LIMIT));
+      assert.equal(res.headers.get('X-RateLimit-Remaining'), '0');
+      assert.equal(res.headers.get('X-RateLimit-Reset'), '11000');
+      assert.equal(res.headers.get('Retry-After'), '10');
+      assert.equal(res.headers.get('Access-Control-Allow-Origin'), 'https://worldmonitor.app');
+      const body = (await res.json()) as { error?: string };
+      assert.equal(body.error, 'RATE_LIMITED');
+    } finally {
+      Date.now = realNow;
+    }
   });
 });

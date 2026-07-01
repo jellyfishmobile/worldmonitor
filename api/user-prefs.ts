@@ -20,6 +20,15 @@ import { captureSilentError } from './_sentry-edge.js';
 import { extractConvexErrorKind, isOpaqueConvexServerError, readConvexErrorNumber } from './_convex-error.js';
 import { ConvexHttpClient } from 'convex/browser';
 import { validateBearerToken } from '../server/auth-session';
+import {
+  RATE_LIMIT_DEGRADED_HEADERS,
+  checkScopedRateLimit,
+  type ScopedRateLimitResult,
+} from '../server/_shared/rate-limit';
+
+export const USER_PREFS_WRITE_RATE_SCOPE = '/api/user-prefs#write';
+export const USER_PREFS_WRITE_RATE_LIMIT = 30;
+export const USER_PREFS_WRITE_RATE_WINDOW = '60 s' as const;
 
 export default async function handler(
   req: Request,
@@ -145,6 +154,9 @@ export default async function handler(
     return jsonResponse({ error: 'MISSING_FIELDS' }, 400, cors);
   }
 
+  const rateLimitResponse = await checkUserPrefsWriteRateLimit(session.userId, cors);
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = (await client.mutation('userPreferences:setPreferences' as any, {
@@ -239,6 +251,56 @@ export default async function handler(
     }));
     return jsonResponse({ error: 'Failed to save preferences' }, 500, cors);
   }
+}
+
+
+async function checkUserPrefsWriteRateLimit(
+  userId: string,
+  cors: Record<string, string>,
+): Promise<Response | null> {
+  const scoped = await checkScopedRateLimit(
+    USER_PREFS_WRITE_RATE_SCOPE,
+    USER_PREFS_WRITE_RATE_LIMIT,
+    USER_PREFS_WRITE_RATE_WINDOW,
+    buildUserPrefsWriteRateLimitIdentifier(userId),
+  );
+  if (scoped.degraded) {
+    return userPrefsWriteRateLimitDegradedResponse(cors);
+  }
+  if (!scoped.allowed) {
+    return userPrefsWriteRateLimitExceededResponse(scoped, cors);
+  }
+  return null;
+}
+
+export function buildUserPrefsWriteRateLimitIdentifier(userId: string): string {
+  return 'user:' + userId;
+}
+
+export function userPrefsWriteRateLimitDegradedResponse(cors: Record<string, string>): Response {
+  return jsonResponse(
+    { error: 'RATE_LIMIT_DEGRADED' },
+    503,
+    { ...RATE_LIMIT_DEGRADED_HEADERS, ...cors },
+  );
+}
+
+export function userPrefsWriteRateLimitExceededResponse(
+  scoped: Pick<ScopedRateLimitResult, 'limit' | 'reset'>,
+  cors: Record<string, string>,
+): Response {
+  const retryAfter = Math.max(1, Math.ceil((scoped.reset - Date.now()) / 1000));
+  return jsonResponse(
+    { error: 'RATE_LIMITED' },
+    429,
+    {
+      'X-RateLimit-Limit': String(scoped.limit),
+      'X-RateLimit-Remaining': '0',
+      'X-RateLimit-Reset': String(scoped.reset),
+      'Retry-After': String(retryAfter),
+      ...cors,
+    },
+  );
 }
 
 

@@ -263,6 +263,11 @@ describe('rate-limit fail-closed call-site policy (#3531)', () => {
 describe('scoped rate-limit degraded call-site policy (#3531)', () => {
   const SCOPED_RATE_LIMIT_CALLERS = [
     {
+      path: 'api/user-prefs.ts',
+      expected: /if\s*\(\s*scoped\.degraded\s*\)\s*\{/,
+      reason: 'user-prefs writes hit Convex directly, so Redis degradation must fail closed locally',
+    },
+    {
       path: 'server/worldmonitor/leads/v1/register-interest.ts',
       expected: /if\s*\(\s*scoped\.degraded\s*\)\s*\{/,
       reason: 'desktop lead capture bypasses Turnstile, so Redis degradation must fail closed locally',
