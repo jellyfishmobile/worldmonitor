@@ -70,10 +70,24 @@ export interface EntitlementCheckResult {
  * 403'd real Pro subscribers calling via Clerk session (no tester key).
  */
 const ENDPOINT_ENTITLEMENTS: Record<string, number> = {
+  '/api/forecast/v1/trigger-simulation': 1,
   '/api/market/v1/analyze-stock': 1,
   '/api/market/v1/get-stock-analysis-history': 1,
   '/api/market/v1/backtest-stock': 1,
   '/api/market/v1/list-stored-stock-backtests': 1,
+  '/api/sanctions/v1/list-sanctions-pressure': 1,
+  '/api/scenario/v1/run-scenario': 1,
+  '/api/scenario/v1/get-scenario-status': 1,
+  '/api/supply-chain/v1/get-country-chokepoint-index': 1,
+  '/api/supply-chain/v1/get-bypass-options': 1,
+  '/api/supply-chain/v1/get-country-cost-shock': 1,
+  '/api/supply-chain/v1/get-route-explorer-lane': 1,
+  '/api/supply-chain/v1/get-route-impact': 1,
+  '/api/supply-chain/v1/get-country-products': 1,
+  '/api/supply-chain/v1/get-multi-sector-cost-shock': 1,
+  '/api/supply-chain/v1/get-sector-dependency': 1,
+  '/api/trade/v1/list-comtrade-flows': 1,
+  '/api/trade/v1/get-tariff-trends': 1,
 };
 
 const CONVEX_INTERNAL_ENTITLEMENTS_PATH = '/api/internal-entitlements';

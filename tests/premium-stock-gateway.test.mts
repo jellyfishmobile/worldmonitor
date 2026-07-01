@@ -151,6 +151,97 @@ describe('premium gateway API key enforcement', () => {
     assert.equal(insiderTransactionsAllowed.status, 200);
   });
 
+  it('standardizes issue #4609 Pro RPCs behind the entitlement 403 gate', async () => {
+    const gatedRoutes = [
+      { method: 'POST', path: '/api/forecast/v1/trigger-simulation' },
+      { method: 'GET', path: '/api/sanctions/v1/list-sanctions-pressure' },
+      { method: 'POST', path: '/api/scenario/v1/run-scenario' },
+      { method: 'GET', path: '/api/scenario/v1/get-scenario-status' },
+      { method: 'GET', path: '/api/supply-chain/v1/get-country-chokepoint-index' },
+      { method: 'GET', path: '/api/supply-chain/v1/get-bypass-options' },
+      { method: 'GET', path: '/api/supply-chain/v1/get-country-cost-shock' },
+      { method: 'GET', path: '/api/supply-chain/v1/get-route-explorer-lane' },
+      { method: 'GET', path: '/api/supply-chain/v1/get-route-impact' },
+      { method: 'GET', path: '/api/supply-chain/v1/get-country-products' },
+      { method: 'GET', path: '/api/supply-chain/v1/get-multi-sector-cost-shock' },
+      { method: 'GET', path: '/api/supply-chain/v1/get-sector-dependency' },
+      { method: 'GET', path: '/api/trade/v1/list-comtrade-flows' },
+      { method: 'GET', path: '/api/trade/v1/get-tariff-trends' },
+      { method: 'GET', path: '/api/market/v1/analyze-stock' },
+      { method: 'GET', path: '/api/market/v1/get-stock-analysis-history' },
+      { method: 'GET', path: '/api/market/v1/backtest-stock' },
+      { method: 'GET', path: '/api/market/v1/list-stored-stock-backtests' },
+    ] as const;
+
+    const handler = createDomainGateway(gatedRoutes.map(({ method, path }) => ({
+      method,
+      path,
+      handler: async () => new Response(JSON.stringify({ leaked: true }), { status: 200 }),
+    })));
+
+    const originalSiteUrl = process.env.CONVEX_SITE_URL;
+    const originalSecret = process.env.CONVEX_SERVER_SHARED_SECRET;
+    const originalFetchForIssue4609GateTest = globalThis.fetch;
+    process.env.CONVEX_SITE_URL = 'https://test.convex.site';
+    process.env.CONVEX_SERVER_SHARED_SECRET = 'test-secret';
+
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
+      if (url.endsWith('/api/internal-validate-api-key')) {
+        return new Response(
+          JSON.stringify({ userId: 'free_api_user', keyId: 'free-key', name: 'Free API key' }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      if (url.endsWith('/api/internal-entitlements')) {
+        return new Response(
+          JSON.stringify({
+            planKey: 'api_free_test',
+            validUntil: Date.now() + 86_400_000,
+            features: {
+              tier: 0,
+              apiAccess: true,
+              apiRateLimit: 60,
+              maxDashboards: 3,
+              prioritySupport: false,
+              exportFormats: [],
+              mcpAccess: false,
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      return originalFetchForIssue4609GateTest(input, init);
+    }) as typeof fetch;
+
+    try {
+      for (const { method, path } of gatedRoutes) {
+        const res = await handler(new Request(`https://worldmonitor.app${path}`, {
+          method,
+          headers: {
+            Origin: 'https://worldmonitor.app',
+            'X-Api-Key': 'wm_free_test_key',
+          },
+        }));
+        assert.equal(res.status, 403, `${method} ${path} should fail at the entitlement gate`);
+        const body = await res.json() as { error?: string; requiredTier?: number; currentTier?: number };
+        assert.equal(body.error, 'Upgrade required', `${method} ${path} should use the standardized entitlement body`);
+        assert.equal(body.requiredTier, 1, `${method} ${path} should declare the required tier`);
+        assert.equal(body.currentTier, 0, `${method} ${path} should include the caller tier when known`);
+      }
+    } finally {
+      globalThis.fetch = originalFetchForIssue4609GateTest;
+      if (originalSiteUrl === undefined) delete process.env.CONVEX_SITE_URL;
+      else process.env.CONVEX_SITE_URL = originalSiteUrl;
+      if (originalSecret === undefined) delete process.env.CONVEX_SERVER_SHARED_SECRET;
+      else process.env.CONVEX_SERVER_SHARED_SECRET = originalSecret;
+    }
+  });
+
   it('PR #3557 review: anonymous wms_ session token does NOT unlock premium endpoints', async () => {
     // Regression: an earlier revision returned valid:true for wms_ tokens and
     // the gateway treated any non-wm_ valid key as enterprise → entitlement
