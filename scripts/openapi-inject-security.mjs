@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * Inject the API-key security contract into the generated OpenAPI specs.
+ * Inject the auth security contract into the generated OpenAPI specs.
  *
  * The sebuf `protoc-gen-openapiv3` plugin (proto/buf.gen.yaml) has no option or
  * annotation for describing authentication, so every generated spec omits
  * `components.securitySchemes`, a root `security` requirement, and the `401`
- * response — even though every WorldMonitor RPC is API-key-enforced at the
- * gateway (server/gateway.ts). This post-generation step adds them so the
+ * response — even though every non-public WorldMonitor RPC is authenticated at
+ * the gateway (server/gateway.ts). This post-generation step adds them so the
  * published contract matches runtime reality. See umbrella issue #4599 (root
  * cause #1).
  *
@@ -16,19 +16,22 @@
  *
  * Two artifacts:
  *   1. docs/api/<Service>.openapi.json — full injection (schemes + root
- *      security + per-operation 401). Re-serialized byte-faithfully to the
- *      generator's format (recursively sorted keys, Go-style <>&/U+2028/U+2029
- *      escaping, no trailing newline) so the diff is additions-only.
+ *      API-key security + per-operation bearer overrides where the gateway
+ *      accepts Clerk bearer auth + per-operation 401). Re-serialized
+ *      byte-faithfully to the generator's format (recursively sorted keys,
+ *      Go-style <>&/U+2028/U+2029 escaping, no trailing newline) so the diff is
+ *      additions-only.
  *   2. docs/api/worldmonitor.openapi.yaml — the bundle copied to
  *      public/openapi.yaml at build time. The generator's YAML emitter cannot
  *      be reproduced by js-yaml (a re-dump reformats ~100% of 21k lines), so
  *      the bundle gets a formatting-preserving surgical insertion of the two
- *      top-level blocks that convey global auth (`security` +
+ *      top-level blocks that convey global API-key auth (`security` +
  *      `components.securitySchemes`). Per-operation detail in the bundle (the
- *      401 response and the `security: []` override on the handful of public
- *      RPCs) is intentionally left to native plugin support (tracked in #4599);
- *      the per-service specs carry the precise per-operation contract, and the
- *      bundle's root `security` documents the authenticated default.
+ *      401 response, bearer overrides, and the `security: []` override on the
+ *      handful of public RPCs) is intentionally left to native plugin support
+ *      (tracked in #4599); the per-service specs carry the precise
+ *      per-operation contract, and the bundle's root `security` documents the
+ *      authenticated API-key default.
  */
 
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
@@ -39,6 +42,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const apiDir = resolve(root, 'docs/api');
 const bundlePath = resolve(apiDir, 'worldmonitor.openapi.yaml');
 const gatewayPath = resolve(root, 'server/gateway.ts');
+const entitlementPath = resolve(root, 'server/_shared/entitlement-check.ts');
+const premiumPathsPath = resolve(root, 'src/shared/premium-paths.ts');
 
 const CHECK = process.argv.includes('--check');
 
@@ -57,10 +62,32 @@ function readPublicNoAuthPaths() {
 }
 const PUBLIC_PATHS = readPublicNoAuthPaths();
 
+// Bearer auth is not a universal replacement for an API key. The gateway only
+// resolves Clerk bearer sessions for endpoint-entitlement gates and legacy Pro
+// paths, so stamp BearerAuth at operation level only for those exact paths.
+function readEndpointEntitlementPaths() {
+  const src = readFileSync(entitlementPath, 'utf8');
+  const block = src.match(/ENDPOINT_ENTITLEMENTS\s*:\s*Record<string,\s*number>\s*=\s*\{([\s\S]*?)\};/);
+  if (!block) throw new Error(`could not locate ENDPOINT_ENTITLEMENTS in ${entitlementPath}`);
+  return [...block[1].matchAll(/'([^']+)'\s*:/g)].map((m) => m[1]);
+}
+
+function readPremiumRpcPaths() {
+  const src = readFileSync(premiumPathsPath, 'utf8');
+  const block = src.match(/PREMIUM_RPC_PATHS\s*=\s*new Set<string>\(\[([\s\S]*?)\]\)/);
+  if (!block) throw new Error(`could not locate PREMIUM_RPC_PATHS in ${premiumPathsPath}`);
+  return [...block[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+}
+
+const BEARER_AUTH_PATHS = new Set([...readEndpointEntitlementPaths(), ...readPremiumRpcPaths()]);
+if (BEARER_AUTH_PATHS.size === 0) {
+  throw new Error('bearer-auth path sources parsed as empty — refusing to run');
+}
+
 // ── Contract definitions ──────────────────────────────────────────────────
-// Header names mirror the gateway's accepted auth headers (server/gateway.ts:
-// Authorization / X-WorldMonitor-Key / X-Api-Key) and docs/api-platform.mdx.
-const SECURITY_SCHEMES = {
+// Header names mirror the gateway's accepted public API-key headers
+// (server/gateway.ts: X-WorldMonitor-Key / X-Api-Key) and docs/api-platform.mdx.
+const API_KEY_SECURITY_SCHEMES = {
   WorldMonitorKey: {
     type: 'apiKey',
     in: 'header',
@@ -73,18 +100,28 @@ const SECURITY_SCHEMES = {
     name: 'X-Api-Key',
     description: 'Alias header for the WorldMonitor API key (X-WorldMonitor-Key).',
   },
+};
+
+const SECURITY_SCHEMES = {
+  ...API_KEY_SECURITY_SCHEMES,
   BearerAuth: {
     type: 'http',
     scheme: 'bearer',
     description:
-      'Bearer token: a Clerk-issued JWT (web sessions) or the relay shared secret, passed as Authorization: Bearer <token>.',
+      'Bearer token: a Clerk-issued JWT for browser session flows, passed as Authorization: Bearer <token>.',
   },
 };
 
-// Root requirement — any ONE scheme satisfies it (OpenAPI OR semantics).
+// Root requirement — any ONE API-key scheme satisfies it (OpenAPI OR
+// semantics). BearerAuth is narrower and is stamped only on operations the
+// gateway actually accepts bearer sessions for.
 const ROOT_SECURITY = [
   { WorldMonitorKey: [] },
   { ApiKeyHeader: [] },
+];
+
+const BEARER_OPERATION_SECURITY = [
+  ...ROOT_SECURITY,
   { BearerAuth: [] },
 ];
 
@@ -140,8 +177,10 @@ function injectJson(spec) {
   spec.components ||= {};
   spec.components.schemas ||= {};
 
-  if (!eq(spec.components.securitySchemes, SECURITY_SCHEMES)) {
-    spec.components.securitySchemes = SECURITY_SCHEMES;
+  const hasBearerAuthPath = Object.keys(spec.paths ?? {}).some((path) => BEARER_AUTH_PATHS.has(path));
+  const expectedSecuritySchemes = hasBearerAuthPath ? SECURITY_SCHEMES : API_KEY_SECURITY_SCHEMES;
+  if (!eq(spec.components.securitySchemes, expectedSecuritySchemes)) {
+    spec.components.securitySchemes = expectedSecuritySchemes;
     changed = true;
   }
   if (!eq(spec.security, ROOT_SECURITY)) {
@@ -163,6 +202,15 @@ function injectJson(spec) {
         if (!eq(op.security, [])) { op.security = []; changed = true; }
         if (op.responses['401'] !== undefined) { delete op.responses['401']; changed = true; }
       } else {
+        if (BEARER_AUTH_PATHS.has(path)) {
+          if (!eq(op.security, BEARER_OPERATION_SECURITY)) {
+            op.security = BEARER_OPERATION_SECURITY;
+            changed = true;
+          }
+        } else if (op.security !== undefined) {
+          delete op.security;
+          changed = true;
+        }
         if (!eq(op.responses['401'], UNAUTHORIZED_RESPONSE)) {
           op.responses['401'] = UNAUTHORIZED_RESPONSE;
           changed = true;
@@ -181,7 +229,6 @@ function bundleSecurityBlock() {
     'security:',
     '    - WorldMonitorKey: []',
     '    - ApiKeyHeader: []',
-    '    - BearerAuth: []',
   ].join('\n');
 }
 
@@ -200,12 +247,6 @@ function bundleSecuritySchemesBlock() {
   L.push('            in: header');
   L.push('            name: X-Api-Key');
   L.push('            description: Alias header for the WorldMonitor API key (X-WorldMonitor-Key).');
-  L.push('        BearerAuth:');
-  L.push('            type: http');
-  L.push('            scheme: bearer');
-  L.push(
-    '            description: \'Bearer token: a Clerk-issued JWT (web sessions) or the relay shared secret, passed as Authorization: Bearer <token>.\'',
-  );
   return L.join('\n');
 }
 
