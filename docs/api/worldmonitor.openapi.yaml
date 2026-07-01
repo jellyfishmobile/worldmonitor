@@ -1979,11 +1979,13 @@ paths:
             parameters:
                 - name: fromDate
                   in: query
+                  description: Start date for economic events, formatted as YYYY-MM-DD.
                   required: false
                   schema:
                     type: string
                 - name: toDate
                   in: query
+                  description: End date for economic events, formatted as YYYY-MM-DD.
                   required: false
                   schema:
                     type: string
@@ -2339,11 +2341,13 @@ paths:
             parameters:
                 - name: domain
                   in: query
+                  description: Forecast domain to retrieve, such as geopolitics, markets, or climate.
                   required: false
                   schema:
                     type: string
                 - name: region
                   in: query
+                  description: Optional geographic or thematic region filter for forecasts.
                   required: false
                   schema:
                     type: string
@@ -2579,21 +2583,25 @@ paths:
             parameters:
                 - name: bbox
                   in: query
+                  description: Bounding box filter for imagery search, encoded as west,south,east,north.
                   required: false
                   schema:
                     type: string
                 - name: datetime
                   in: query
+                  description: ISO 8601 datetime or datetime range for matching imagery scenes.
                   required: false
                   schema:
                     type: string
                 - name: source
                   in: query
+                  description: Optional imagery source filter, such as satellite or provider name.
                   required: false
                   schema:
                     type: string
                 - name: limit
                   in: query
+                  description: Maximum number of imagery scenes to return.
                   required: false
                   schema:
                     type: integer
@@ -2792,12 +2800,14 @@ paths:
             parameters:
                 - name: lat
                   in: query
+                  description: Latitude of the point to reverse geocode.
                   required: false
                   schema:
                     type: number
                     format: double
                 - name: lon
                   in: query
+                  description: Longitude of the point to reverse geocode.
                   required: false
                   schema:
                     type: number
@@ -2837,6 +2847,7 @@ paths:
                     type: string
                 - name: keys
                   in: query
+                  description: Specific bootstrap cache keys to fetch when tier is not sufficient.
                   required: false
                   style: form
                   explode: true
@@ -3442,11 +3453,13 @@ paths:
             parameters:
                 - name: domain
                   in: query
+                  description: Company domain to enrich, such as "github.com".
                   required: false
                   schema:
                     type: string
                 - name: name
                   in: query
+                  description: Company name to enrich when a domain is not available.
                   required: false
                   schema:
                     type: string
@@ -3479,11 +3492,13 @@ paths:
             parameters:
                 - name: company
                   in: query
+                  description: Company name to discover signals for.
                   required: false
                   schema:
                     type: string
                 - name: domain
                   in: query
+                  description: Company domain to discover signals for.
                   required: false
                   schema:
                     type: string
@@ -3516,6 +3531,7 @@ paths:
             parameters:
                 - name: country_code
                   in: query
+                  description: ISO 3166-1 alpha-2 country code for the facts lookup.
                   required: false
                   schema:
                     type: string
@@ -3633,6 +3649,7 @@ paths:
             parameters:
                 - name: frameworkId
                   in: query
+                  description: Framework identifier whose market implication cards should be listed.
                   required: false
                   schema:
                     type: string
@@ -3691,6 +3708,7 @@ paths:
             parameters:
                 - name: country_code
                   in: query
+                  description: ISO 3166-1 alpha-2 country code for the energy profile.
                   required: false
                   schema:
                     type: string
@@ -3723,22 +3741,26 @@ paths:
             parameters:
                 - name: country_code
                   in: query
+                  description: ISO 3166-1 alpha-2 country code for the affected energy market.
                   required: false
                   schema:
                     type: string
                 - name: chokepoint_id
                   in: query
+                  description: Chokepoint identifier to model as disrupted.
                   required: false
                   schema:
                     type: string
                 - name: disruption_pct
                   in: query
+                  description: Percent of chokepoint flow disrupted, from 0 to 100.
                   required: false
                   schema:
                     type: integer
                     format: int32
                 - name: fuel_mode
                   in: query
+                  description: 'Fuel mode to model: "oil", "gas", or "both". Defaults to "oil".'
                   required: false
                   schema:
                     type: string
@@ -3771,6 +3793,7 @@ paths:
             parameters:
                 - name: country_code
                   in: query
+                  description: ISO 3166-1 alpha-2 country code for port activity.
                   required: false
                   schema:
                     type: string
@@ -3893,6 +3916,7 @@ paths:
             parameters:
                 - name: region_id
                   in: query
+                  description: Stable regional brief identifier, such as "middle-east".
                   required: false
                   schema:
                     type: string
@@ -4376,16 +4400,19 @@ paths:
             parameters:
                 - name: symbol
                   in: query
+                  description: Stock ticker symbol to analyze.
                   required: false
                   schema:
                     type: string
                 - name: name
                   in: query
+                  description: Optional company display name used to disambiguate the symbol.
                   required: false
                   schema:
                     type: string
                 - name: include_news
                   in: query
+                  description: Whether to include recent news in the stock analysis.
                   required: false
                   schema:
                     type: boolean
@@ -4418,6 +4445,7 @@ paths:
             parameters:
                 - name: symbols
                   in: query
+                  description: Stock ticker symbols whose stored analysis history should be returned.
                   required: false
                   style: form
                   explode: true
@@ -4427,12 +4455,14 @@ paths:
                         type: string
                 - name: limit_per_symbol
                   in: query
+                  description: Maximum number of history snapshots to return per symbol.
                   required: false
                   schema:
                     type: integer
                     format: int32
                 - name: include_news
                   in: query
+                  description: Whether history snapshots should include stored news summaries.
                   required: false
                   schema:
                     type: boolean
@@ -4465,16 +4495,19 @@ paths:
             parameters:
                 - name: symbol
                   in: query
+                  description: Stock ticker symbol to backtest.
                   required: false
                   schema:
                     type: string
                 - name: name
                   in: query
+                  description: Optional company display name used to disambiguate the symbol.
                   required: false
                   schema:
                     type: string
                 - name: eval_window_days
                   in: query
+                  description: Evaluation window in days for simulated backtest outcomes.
                   required: false
                   schema:
                     type: integer
@@ -4508,6 +4541,7 @@ paths:
             parameters:
                 - name: symbols
                   in: query
+                  description: Stock ticker symbols whose stored backtests should be returned.
                   required: false
                   style: form
                   explode: true
@@ -4517,6 +4551,7 @@ paths:
                         type: string
                 - name: eval_window_days
                   in: query
+                  description: Evaluation window in days used by stored backtests.
                   required: false
                   schema:
                     type: integer
@@ -4680,11 +4715,13 @@ paths:
             parameters:
                 - name: fromDate
                   in: query
+                  description: Start date for earnings entries, formatted as YYYY-MM-DD.
                   required: false
                   schema:
                     type: string
                 - name: toDate
                   in: query
+                  description: End date for earnings entries, formatted as YYYY-MM-DD.
                   required: false
                   schema:
                     type: string
@@ -4743,6 +4780,7 @@ paths:
             parameters:
                 - name: symbol
                   in: query
+                  description: Stock ticker symbol for insider transaction lookup.
                   required: false
                   schema:
                     type: string
@@ -5090,46 +5128,54 @@ paths:
             parameters:
                 - name: ne_lat
                   in: query
+                  description: North-east corner latitude of the map bounding box.
                   required: false
                   schema:
                     type: number
                     format: double
                 - name: ne_lon
                   in: query
+                  description: North-east corner longitude of the map bounding box.
                   required: false
                   schema:
                     type: number
                     format: double
                 - name: sw_lat
                   in: query
+                  description: South-west corner latitude of the map bounding box.
                   required: false
                   schema:
                     type: number
                     format: double
                 - name: sw_lon
                   in: query
+                  description: South-west corner longitude of the map bounding box.
                   required: false
                   schema:
                     type: number
                     format: double
                 - name: zoom
                   in: query
+                  description: Map zoom level used to decide whether to return bases or clusters.
                   required: false
                   schema:
                     type: integer
                     format: int32
                 - name: type
                   in: query
+                  description: Optional military base type filter.
                   required: false
                   schema:
                     type: string
                 - name: kind
                   in: query
+                  description: Optional military base kind filter.
                   required: false
                   schema:
                     type: string
                 - name: country
                   in: query
+                  description: Optional country filter for military bases.
                   required: false
                   schema:
                     type: string
@@ -5240,6 +5286,7 @@ paths:
             parameters:
                 - name: days
                   in: query
+                  description: Number of recent days to include in the natural-event feed.
                   required: false
                   schema:
                     type: integer
@@ -5691,6 +5738,7 @@ paths:
             parameters:
                 - name: countryCode
                   in: query
+                  description: ISO 3166-1 alpha-2 country code to score.
                   required: true
                   schema:
                     type: string
@@ -5773,6 +5821,7 @@ paths:
             parameters:
                 - name: max_items
                   in: query
+                  description: Maximum number of recent sanctions entries to include.
                   required: false
                   schema:
                     type: integer
@@ -5806,11 +5855,13 @@ paths:
             parameters:
                 - name: q
                   in: query
+                  description: Search text for a sanctioned person, organization, vessel, or aircraft.
                   required: false
                   schema:
                     type: string
                 - name: max_results
                   in: query
+                  description: Maximum number of matching sanctioned entities to return.
                   required: false
                   schema:
                     type: integer
@@ -6181,6 +6232,7 @@ paths:
             parameters:
                 - name: chokepointId
                   in: query
+                  description: Chokepoint identifier whose transit history should be returned.
                   required: false
                   schema:
                     type: string
@@ -6303,6 +6355,7 @@ paths:
             parameters:
                 - name: chokepointId
                   in: query
+                  description: Chokepoint identifier to evaluate for bypass options.
                   required: false
                   schema:
                     type: string
@@ -6348,11 +6401,13 @@ paths:
             parameters:
                 - name: iso2
                   in: query
+                  description: ISO 3166-1 alpha-2 country code for the importing country.
                   required: false
                   schema:
                     type: string
                 - name: chokepointId
                   in: query
+                  description: Chokepoint identifier to model as disrupted.
                   required: false
                   schema:
                     type: string
@@ -6391,6 +6446,7 @@ paths:
             parameters:
                 - name: iso2
                   in: query
+                  description: ISO 3166-1 alpha-2 country code whose strategic products should be returned.
                   required: false
                   schema:
                     type: string
@@ -6425,11 +6481,13 @@ paths:
             parameters:
                 - name: iso2
                   in: query
+                  description: ISO 3166-1 alpha-2 country code for the importing country.
                   required: false
                   schema:
                     type: string
                 - name: chokepointId
                   in: query
+                  description: Chokepoint identifier to model as disrupted.
                   required: false
                   schema:
                     type: string
@@ -6469,6 +6527,7 @@ paths:
             parameters:
                 - name: iso2
                   in: query
+                  description: ISO 3166-1 alpha-2 country code whose sector dependency should be analyzed.
                   required: false
                   schema:
                     type: string
@@ -6512,11 +6571,13 @@ paths:
             parameters:
                 - name: fromIso2
                   in: query
+                  description: ISO 3166-1 alpha-2 origin country code for the trade lane.
                   required: false
                   schema:
                     type: string
                 - name: toIso2
                   in: query
+                  description: ISO 3166-1 alpha-2 destination country code for the trade lane.
                   required: false
                   schema:
                     type: string
@@ -6560,16 +6621,19 @@ paths:
             parameters:
                 - name: fromIso2
                   in: query
+                  description: ISO 3166-1 alpha-2 origin country code for the route.
                   required: false
                   schema:
                     type: string
                 - name: toIso2
                   in: query
+                  description: ISO 3166-1 alpha-2 destination country code for the route.
                   required: false
                   schema:
                     type: string
                 - name: hs2
                   in: query
+                  description: HS2 chapter code for the product sector on the route.
                   required: false
                   schema:
                     type: string
@@ -6641,6 +6705,7 @@ paths:
             parameters:
                 - name: pipelineId
                   in: query
+                  description: Pipeline identifier to load with full evidence details.
                   required: false
                   schema:
                     type: string
@@ -6716,6 +6781,7 @@ paths:
             parameters:
                 - name: facilityId
                   in: query
+                  description: Storage facility identifier to load with full evidence details.
                   required: false
                   schema:
                     type: string
@@ -6800,6 +6866,7 @@ paths:
             parameters:
                 - name: shortageId
                   in: query
+                  description: Fuel-shortage identifier to load with full evidence details.
                   required: false
                   schema:
                     type: string
@@ -6882,6 +6949,7 @@ paths:
             parameters:
                 - name: max_items
                   in: query
+                  description: Maximum number of thermal escalation clusters to return.
                   required: false
                   schema:
                     type: integer
@@ -7271,30 +7339,35 @@ paths:
             parameters:
                 - name: zoom
                   in: query
+                  description: Map zoom level used to decide whether to return webcams or clusters.
                   required: false
                   schema:
                     type: integer
                     format: int32
                 - name: bound_w
                   in: query
+                  description: Western longitude bound of the map viewport.
                   required: false
                   schema:
                     type: number
                     format: double
                 - name: bound_s
                   in: query
+                  description: Southern latitude bound of the map viewport.
                   required: false
                   schema:
                     type: number
                     format: double
                 - name: bound_e
                   in: query
+                  description: Eastern longitude bound of the map viewport.
                   required: false
                   schema:
                     type: number
                     format: double
                 - name: bound_n
                   in: query
+                  description: Northern latitude bound of the map viewport.
                   required: false
                   schema:
                     type: number
@@ -7327,6 +7400,7 @@ paths:
             parameters:
                 - name: webcam_id
                   in: query
+                  description: Webcam identifier to resolve into image and player URLs.
                   required: false
                   schema:
                     type: string
@@ -10681,8 +10755,10 @@ components:
             properties:
                 fromDate:
                     type: string
+                    description: Start date for economic events, formatted as YYYY-MM-DD.
                 toDate:
                     type: string
+                    description: End date for economic events, formatted as YYYY-MM-DD.
         worldmonitor_economic_v1_GetEconomicCalendarResponse:
             type: object
             properties:
@@ -11388,8 +11464,10 @@ components:
             properties:
                 domain:
                     type: string
+                    description: Forecast domain to retrieve, such as geopolitics, markets, or climate.
                 region:
                     type: string
+                    description: Optional geographic or thematic region filter for forecasts.
         worldmonitor_forecast_v1_GetForecastsResponse:
             type: object
             properties:
@@ -12088,13 +12166,17 @@ components:
             properties:
                 bbox:
                     type: string
+                    description: Bounding box filter for imagery search, encoded as west,south,east,north.
                 datetime:
                     type: string
+                    description: ISO 8601 datetime or datetime range for matching imagery scenes.
                 source:
                     type: string
+                    description: Optional imagery source filter, such as satellite or provider name.
                 limit:
                     type: integer
                     format: int32
+                    description: Maximum number of imagery scenes to return.
         worldmonitor_imagery_v1_SearchImageryResponse:
             type: object
             properties:
@@ -12362,9 +12444,11 @@ components:
                 lat:
                     type: number
                     format: double
+                    description: Latitude of the point to reverse geocode.
                 lon:
                     type: number
                     format: double
+                    description: Longitude of the point to reverse geocode.
             description: ReverseGeocodeRequest parameters for coordinate-to-address lookups.
         worldmonitor_infrastructure_v1_ReverseGeocodeResponse:
             type: object
@@ -12392,6 +12476,7 @@ components:
                     type: array
                     items:
                         type: string
+                        description: Specific bootstrap cache keys to fetch when tier is not sufficient.
             description: GetBootstrapDataRequest parameters for multi-key fetching.
         worldmonitor_infrastructure_v1_GetBootstrapDataResponse:
             type: object
@@ -13498,8 +13583,10 @@ components:
             properties:
                 domain:
                     type: string
+                    description: Company domain to enrich, such as "github.com".
                 name:
                     type: string
+                    description: Company name to enrich when a domain is not available.
             description: |-
                 Request to fetch enrichment data for a company.
                  Requires either domain (e.g. "github.com") or name (e.g. "GitHub").
@@ -13608,8 +13695,10 @@ components:
             properties:
                 company:
                     type: string
+                    description: Company name to discover signals for.
                 domain:
                     type: string
+                    description: Company domain to discover signals for.
             description: Request to discover and classify company signals (hiring, funding, tech changes).
         worldmonitor_intelligence_v1_ListCompanySignalsResponse:
             type: object
@@ -13702,6 +13791,7 @@ components:
                 countryCode:
                     type: string
                     pattern: ^[A-Z]{2}$
+                    description: ISO 3166-1 alpha-2 country code for the facts lookup.
             required:
                 - countryCode
         worldmonitor_intelligence_v1_GetCountryFactsResponse:
@@ -13899,6 +13989,7 @@ components:
             properties:
                 frameworkId:
                     type: string
+                    description: Framework identifier whose market implication cards should be listed.
         worldmonitor_intelligence_v1_ListMarketImplicationsResponse:
             type: object
             properties:
@@ -14000,6 +14091,7 @@ components:
             properties:
                 countryCode:
                     type: string
+                    description: ISO 3166-1 alpha-2 country code for the energy profile.
         worldmonitor_intelligence_v1_GetCountryEnergyProfileResponse:
             type: object
             properties:
@@ -14170,13 +14262,17 @@ components:
             properties:
                 countryCode:
                     type: string
+                    description: ISO 3166-1 alpha-2 country code for the affected energy market.
                 chokepointId:
                     type: string
+                    description: Chokepoint identifier to model as disrupted.
                 disruptionPct:
                     type: integer
                     format: int32
+                    description: Percent of chokepoint flow disrupted, from 0 to 100.
                 fuelMode:
                     type: string
+                    description: 'Fuel mode to model: "oil", "gas", or "both". Defaults to "oil".'
         worldmonitor_intelligence_v1_ComputeEnergyShockScenarioResponse:
             type: object
             properties:
@@ -14291,6 +14387,7 @@ components:
             properties:
                 countryCode:
                     type: string
+                    description: ISO 3166-1 alpha-2 country code for port activity.
         worldmonitor_intelligence_v1_CountryPortActivityResponse:
             type: object
             properties:
@@ -14896,6 +14993,7 @@ components:
                     maxLength: 32
                     minLength: 1
                     pattern: ^[a-z][a-z0-9]*(-[a-z0-9]+)*$
+                    description: Stable regional brief identifier, such as "middle-east".
             required:
                 - regionId
         worldmonitor_intelligence_v1_GetRegionalBriefResponse:
@@ -15720,11 +15818,14 @@ components:
                     type: string
                     maxLength: 32
                     minLength: 1
+                    description: Stock ticker symbol to analyze.
                 name:
                     type: string
                     maxLength: 120
+                    description: Optional company display name used to disambiguate the symbol.
                 includeNews:
                     type: boolean
+                    description: Whether to include recent news in the stock analysis.
             required:
                 - symbol
         worldmonitor_market_v1_AnalyzeStockResponse:
@@ -15958,13 +16059,16 @@ components:
                     type: array
                     items:
                         type: string
+                        description: Stock ticker symbols whose stored analysis history should be returned.
                 limitPerSymbol:
                     type: integer
                     maximum: 32
                     minimum: 1
                     format: int32
+                    description: Maximum number of history snapshots to return per symbol.
                 includeNews:
                     type: boolean
+                    description: Whether history snapshots should include stored news summaries.
         worldmonitor_market_v1_GetStockAnalysisHistoryResponse:
             type: object
             properties:
@@ -15988,14 +16092,17 @@ components:
                     type: string
                     maxLength: 32
                     minLength: 1
+                    description: Stock ticker symbol to backtest.
                 name:
                     type: string
                     maxLength: 120
+                    description: Optional company display name used to disambiguate the symbol.
                 evalWindowDays:
                     type: integer
                     maximum: 30
                     minimum: 3
                     format: int32
+                    description: Evaluation window in days for simulated backtest outcomes.
             required:
                 - symbol
         worldmonitor_market_v1_BacktestStockResponse:
@@ -16087,11 +16194,13 @@ components:
                     type: array
                     items:
                         type: string
+                        description: Stock ticker symbols whose stored backtests should be returned.
                 evalWindowDays:
                     type: integer
                     maximum: 30
                     minimum: 3
                     format: int32
+                    description: Evaluation window in days used by stored backtests.
         worldmonitor_market_v1_ListStoredStockBacktestsResponse:
             type: object
             properties:
@@ -16276,8 +16385,10 @@ components:
             properties:
                 fromDate:
                     type: string
+                    description: Start date for earnings entries, formatted as YYYY-MM-DD.
                 toDate:
                     type: string
+                    description: End date for earnings entries, formatted as YYYY-MM-DD.
         worldmonitor_market_v1_ListEarningsCalendarResponse:
             type: object
             properties:
@@ -16371,6 +16482,7 @@ components:
                     type: string
                     maxLength: 32
                     minLength: 1
+                    description: Stock ticker symbol for insider transaction lookup.
             required:
                 - symbol
         worldmonitor_market_v1_GetInsiderTransactionsResponse:
@@ -17356,24 +17468,32 @@ components:
                 neLat:
                     type: number
                     format: double
+                    description: North-east corner latitude of the map bounding box.
                 neLon:
                     type: number
                     format: double
+                    description: North-east corner longitude of the map bounding box.
                 swLat:
                     type: number
                     format: double
+                    description: South-west corner latitude of the map bounding box.
                 swLon:
                     type: number
                     format: double
+                    description: South-west corner longitude of the map bounding box.
                 zoom:
                     type: integer
                     format: int32
+                    description: Map zoom level used to decide whether to return bases or clusters.
                 type:
                     type: string
+                    description: Optional military base type filter.
                 kind:
                     type: string
+                    description: Optional military base kind filter.
                 country:
                     type: string
+                    description: Optional country filter for military bases.
         worldmonitor_military_v1_ListMilitaryBasesResponse:
             type: object
             properties:
@@ -17629,6 +17749,7 @@ components:
                 days:
                     type: integer
                     format: int32
+                    description: Number of recent days to include in the natural-event feed.
         worldmonitor_natural_v1_ListNaturalEventsResponse:
             type: object
             properties:
@@ -18554,6 +18675,7 @@ components:
             properties:
                 countryCode:
                     type: string
+                    description: ISO 3166-1 alpha-2 country code to score.
         worldmonitor_resilience_v1_GetResilienceScoreResponse:
             type: object
             properties:
@@ -18867,6 +18989,7 @@ components:
                 maxItems:
                     type: integer
                     format: int32
+                    description: Maximum number of recent sanctions entries to include.
             description: ListSanctionsPressureRequest retrieves recent OFAC sanctions pressure state.
         worldmonitor_sanctions_v1_ListSanctionsPressureResponse:
             type: object
@@ -18985,9 +19108,11 @@ components:
             properties:
                 q:
                     type: string
+                    description: Search text for a sanctioned person, organization, vessel, or aircraft.
                 maxResults:
                     type: integer
                     format: int32
+                    description: Maximum number of matching sanctioned entities to return.
             description: LookupSanctionEntityRequest searches the OFAC entity index by name, vessel, or aircraft.
         worldmonitor_sanctions_v1_LookupSanctionEntityResponse:
             type: object
@@ -19723,6 +19848,7 @@ components:
             properties:
                 chokepointId:
                     type: string
+                    description: Chokepoint identifier whose transit history should be returned.
             required:
                 - chokepointId
             description: |-
@@ -19902,6 +20028,7 @@ components:
             properties:
                 chokepointId:
                     type: string
+                    description: Chokepoint identifier to evaluate for bypass options.
                 cargoType:
                     type: string
                     description: 'container | tanker | bulk | roro  (default: "container")'
@@ -19996,8 +20123,10 @@ components:
                 iso2:
                     type: string
                     pattern: ^[A-Z]{2}$
+                    description: ISO 3166-1 alpha-2 country code for the importing country.
                 chokepointId:
                     type: string
+                    description: Chokepoint identifier to model as disrupted.
                 hs2:
                     type: string
                     description: 'HS2 chapter (default: "27")'
@@ -20054,6 +20183,7 @@ components:
                 iso2:
                     type: string
                     pattern: ^[A-Z]{2}$
+                    description: ISO 3166-1 alpha-2 country code whose strategic products should be returned.
             required:
                 - iso2
         worldmonitor_supply_chain_v1_GetCountryProductsResponse:
@@ -20105,8 +20235,10 @@ components:
                 iso2:
                     type: string
                     pattern: ^[A-Z]{2}$
+                    description: ISO 3166-1 alpha-2 country code for the importing country.
                 chokepointId:
                     type: string
+                    description: Chokepoint identifier to model as disrupted.
                 closureDays:
                     type: integer
                     format: int32
@@ -20201,6 +20333,7 @@ components:
                 iso2:
                     type: string
                     pattern: ^[A-Z]{2}$
+                    description: ISO 3166-1 alpha-2 country code whose sector dependency should be analyzed.
                 hs2:
                     type: string
                     description: HS2 chapter code, e.g. "27" (mineral fuels), "85" (electronics)
@@ -20253,9 +20386,11 @@ components:
                 fromIso2:
                     type: string
                     pattern: ^[A-Z]{2}$
+                    description: ISO 3166-1 alpha-2 origin country code for the trade lane.
                 toIso2:
                     type: string
                     pattern: ^[A-Z]{2}$
+                    description: ISO 3166-1 alpha-2 destination country code for the trade lane.
                 hs2:
                     type: string
                     description: HS2 chapter code, e.g. "27", "85"
@@ -20381,11 +20516,14 @@ components:
                 fromIso2:
                     type: string
                     pattern: ^[A-Z]{2}$
+                    description: ISO 3166-1 alpha-2 origin country code for the route.
                 toIso2:
                     type: string
                     pattern: ^[A-Z]{2}$
+                    description: ISO 3166-1 alpha-2 destination country code for the route.
                 hs2:
                     type: string
+                    description: HS2 chapter code for the product sector on the route.
             required:
                 - fromIso2
                 - toIso2
@@ -20578,6 +20716,7 @@ components:
             properties:
                 pipelineId:
                     type: string
+                    description: Pipeline identifier to load with full evidence details.
             required:
                 - pipelineId
             description: |-
@@ -20766,6 +20905,7 @@ components:
             properties:
                 facilityId:
                     type: string
+                    description: Storage facility identifier to load with full evidence details.
             required:
                 - facilityId
             description: |-
@@ -20918,6 +21058,7 @@ components:
             properties:
                 shortageId:
                     type: string
+                    description: Fuel-shortage identifier to load with full evidence details.
             required:
                 - shortageId
             description: |-
@@ -21046,6 +21187,7 @@ components:
                 maxItems:
                     type: integer
                     format: int32
+                    description: Maximum number of thermal escalation clusters to return.
         worldmonitor_thermal_v1_ListThermalEscalationsResponse:
             type: object
             properties:
@@ -21752,18 +21894,23 @@ components:
                 zoom:
                     type: integer
                     format: int32
+                    description: Map zoom level used to decide whether to return webcams or clusters.
                 boundW:
                     type: number
                     format: double
+                    description: Western longitude bound of the map viewport.
                 boundS:
                     type: number
                     format: double
+                    description: Southern latitude bound of the map viewport.
                 boundE:
                     type: number
                     format: double
+                    description: Eastern longitude bound of the map viewport.
                 boundN:
                     type: number
                     format: double
+                    description: Northern latitude bound of the map viewport.
         worldmonitor_webcam_v1_ListWebcamsResponse:
             type: object
             properties:
@@ -21816,6 +21963,7 @@ components:
             properties:
                 webcamId:
                     type: string
+                    description: Webcam identifier to resolve into image and player URLs.
         worldmonitor_webcam_v1_GetWebcamImageResponse:
             type: object
             properties:

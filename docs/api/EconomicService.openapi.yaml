@@ -475,11 +475,13 @@ paths:
             parameters:
                 - name: fromDate
                   in: query
+                  description: Start date for economic events, formatted as YYYY-MM-DD.
                   required: false
                   schema:
                     type: string
                 - name: toDate
                   in: query
+                  description: End date for economic events, formatted as YYYY-MM-DD.
                   required: false
                   schema:
                     type: string
@@ -1694,8 +1696,10 @@ components:
             properties:
                 fromDate:
                     type: string
+                    description: Start date for economic events, formatted as YYYY-MM-DD.
                 toDate:
                     type: string
+                    description: End date for economic events, formatted as YYYY-MM-DD.
         GetEconomicCalendarResponse:
             type: object
             properties:

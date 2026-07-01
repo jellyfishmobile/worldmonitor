@@ -439,11 +439,13 @@ paths:
             parameters:
                 - name: domain
                   in: query
+                  description: Company domain to enrich, such as "github.com".
                   required: false
                   schema:
                     type: string
                 - name: name
                   in: query
+                  description: Company name to enrich when a domain is not available.
                   required: false
                   schema:
                     type: string
@@ -476,11 +478,13 @@ paths:
             parameters:
                 - name: company
                   in: query
+                  description: Company name to discover signals for.
                   required: false
                   schema:
                     type: string
                 - name: domain
                   in: query
+                  description: Company domain to discover signals for.
                   required: false
                   schema:
                     type: string
@@ -513,6 +517,7 @@ paths:
             parameters:
                 - name: country_code
                   in: query
+                  description: ISO 3166-1 alpha-2 country code for the facts lookup.
                   required: false
                   schema:
                     type: string
@@ -630,6 +635,7 @@ paths:
             parameters:
                 - name: frameworkId
                   in: query
+                  description: Framework identifier whose market implication cards should be listed.
                   required: false
                   schema:
                     type: string
@@ -688,6 +694,7 @@ paths:
             parameters:
                 - name: country_code
                   in: query
+                  description: ISO 3166-1 alpha-2 country code for the energy profile.
                   required: false
                   schema:
                     type: string
@@ -720,22 +727,26 @@ paths:
             parameters:
                 - name: country_code
                   in: query
+                  description: ISO 3166-1 alpha-2 country code for the affected energy market.
                   required: false
                   schema:
                     type: string
                 - name: chokepoint_id
                   in: query
+                  description: Chokepoint identifier to model as disrupted.
                   required: false
                   schema:
                     type: string
                 - name: disruption_pct
                   in: query
+                  description: Percent of chokepoint flow disrupted, from 0 to 100.
                   required: false
                   schema:
                     type: integer
                     format: int32
                 - name: fuel_mode
                   in: query
+                  description: 'Fuel mode to model: "oil", "gas", or "both". Defaults to "oil".'
                   required: false
                   schema:
                     type: string
@@ -768,6 +779,7 @@ paths:
             parameters:
                 - name: country_code
                   in: query
+                  description: ISO 3166-1 alpha-2 country code for port activity.
                   required: false
                   schema:
                     type: string
@@ -890,6 +902,7 @@ paths:
             parameters:
                 - name: region_id
                   in: query
+                  description: Stable regional brief identifier, such as "middle-east".
                   required: false
                   schema:
                     type: string
@@ -1772,8 +1785,10 @@ components:
             properties:
                 domain:
                     type: string
+                    description: Company domain to enrich, such as "github.com".
                 name:
                     type: string
+                    description: Company name to enrich when a domain is not available.
             description: |-
                 Request to fetch enrichment data for a company.
                  Requires either domain (e.g. "github.com") or name (e.g. "GitHub").
@@ -1882,8 +1897,10 @@ components:
             properties:
                 company:
                     type: string
+                    description: Company name to discover signals for.
                 domain:
                     type: string
+                    description: Company domain to discover signals for.
             description: Request to discover and classify company signals (hiring, funding, tech changes).
         ListCompanySignalsResponse:
             type: object
@@ -1976,6 +1993,7 @@ components:
                 countryCode:
                     type: string
                     pattern: ^[A-Z]{2}$
+                    description: ISO 3166-1 alpha-2 country code for the facts lookup.
             required:
                 - countryCode
         GetCountryFactsResponse:
@@ -2173,6 +2191,7 @@ components:
             properties:
                 frameworkId:
                     type: string
+                    description: Framework identifier whose market implication cards should be listed.
         ListMarketImplicationsResponse:
             type: object
             properties:
@@ -2274,6 +2293,7 @@ components:
             properties:
                 countryCode:
                     type: string
+                    description: ISO 3166-1 alpha-2 country code for the energy profile.
         GetCountryEnergyProfileResponse:
             type: object
             properties:
@@ -2444,13 +2464,17 @@ components:
             properties:
                 countryCode:
                     type: string
+                    description: ISO 3166-1 alpha-2 country code for the affected energy market.
                 chokepointId:
                     type: string
+                    description: Chokepoint identifier to model as disrupted.
                 disruptionPct:
                     type: integer
                     format: int32
+                    description: Percent of chokepoint flow disrupted, from 0 to 100.
                 fuelMode:
                     type: string
+                    description: 'Fuel mode to model: "oil", "gas", or "both". Defaults to "oil".'
         ComputeEnergyShockScenarioResponse:
             type: object
             properties:
@@ -2565,6 +2589,7 @@ components:
             properties:
                 countryCode:
                     type: string
+                    description: ISO 3166-1 alpha-2 country code for port activity.
         CountryPortActivityResponse:
             type: object
             properties:
@@ -3170,6 +3195,7 @@ components:
                     maxLength: 32
                     minLength: 1
                     pattern: ^[a-z][a-z0-9]*(-[a-z0-9]+)*$
+                    description: Stable regional brief identifier, such as "middle-east".
             required:
                 - regionId
         GetRegionalBriefResponse:

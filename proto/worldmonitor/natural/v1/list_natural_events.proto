@@ -59,6 +59,7 @@ message CoordRing {
 }
 
 message ListNaturalEventsRequest {
+  // Number of recent days to include in the natural-event feed.
   int32 days = 1 [(sebuf.http.query) = { name: "days" }];
 }
 

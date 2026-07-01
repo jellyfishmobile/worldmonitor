@@ -250,46 +250,54 @@ paths:
             parameters:
                 - name: ne_lat
                   in: query
+                  description: North-east corner latitude of the map bounding box.
                   required: false
                   schema:
                     type: number
                     format: double
                 - name: ne_lon
                   in: query
+                  description: North-east corner longitude of the map bounding box.
                   required: false
                   schema:
                     type: number
                     format: double
                 - name: sw_lat
                   in: query
+                  description: South-west corner latitude of the map bounding box.
                   required: false
                   schema:
                     type: number
                     format: double
                 - name: sw_lon
                   in: query
+                  description: South-west corner longitude of the map bounding box.
                   required: false
                   schema:
                     type: number
                     format: double
                 - name: zoom
                   in: query
+                  description: Map zoom level used to decide whether to return bases or clusters.
                   required: false
                   schema:
                     type: integer
                     format: int32
                 - name: type
                   in: query
+                  description: Optional military base type filter.
                   required: false
                   schema:
                     type: string
                 - name: kind
                   in: query
+                  description: Optional military base kind filter.
                   required: false
                   schema:
                     type: string
                 - name: country
                   in: query
+                  description: Optional country filter for military bases.
                   required: false
                   schema:
                     type: string
@@ -1034,24 +1042,32 @@ components:
                 neLat:
                     type: number
                     format: double
+                    description: North-east corner latitude of the map bounding box.
                 neLon:
                     type: number
                     format: double
+                    description: North-east corner longitude of the map bounding box.
                 swLat:
                     type: number
                     format: double
+                    description: South-west corner latitude of the map bounding box.
                 swLon:
                     type: number
                     format: double
+                    description: South-west corner longitude of the map bounding box.
                 zoom:
                     type: integer
                     format: int32
+                    description: Map zoom level used to decide whether to return bases or clusters.
                 type:
                     type: string
+                    description: Optional military base type filter.
                 kind:
                     type: string
+                    description: Optional military base kind filter.
                 country:
                     type: string
+                    description: Optional country filter for military bases.
         ListMilitaryBasesResponse:
             type: object
             properties:

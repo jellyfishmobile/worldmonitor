@@ -12,11 +12,13 @@ paths:
             parameters:
                 - name: domain
                   in: query
+                  description: Forecast domain to retrieve, such as geopolitics, markets, or climate.
                   required: false
                   schema:
                     type: string
                 - name: region
                   in: query
+                  description: Optional geographic or thematic region filter for forecasts.
                   required: false
                   schema:
                     type: string
@@ -188,8 +190,10 @@ components:
             properties:
                 domain:
                     type: string
+                    description: Forecast domain to retrieve, such as geopolitics, markets, or climate.
                 region:
                     type: string
+                    description: Optional geographic or thematic region filter for forecasts.
         GetForecastsResponse:
             type: object
             properties:

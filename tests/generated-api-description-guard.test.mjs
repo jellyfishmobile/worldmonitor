@@ -13,10 +13,6 @@ const HIGH_RISK_SCHEMA_NAME =
 // Existing generated-description debt discovered by the Audit Council guard.
 // New entries must be fixed in proto comments or explicitly added here with review context.
 const LEGACY_HIGH_RISK_DESCRIPTION_GAPS = new Set([
-  'IntelligenceService.openapi.json:ComputeEnergyShockScenarioRequest.chokepointId',
-  'IntelligenceService.openapi.json:ComputeEnergyShockScenarioRequest.countryCode',
-  'IntelligenceService.openapi.json:ComputeEnergyShockScenarioRequest.disruptionPct',
-  'IntelligenceService.openapi.json:ComputeEnergyShockScenarioRequest.fuelMode',
   'IntelligenceService.openapi.json:ComputeEnergyShockScenarioResponse.assessment',
   'IntelligenceService.openapi.json:ComputeEnergyShockScenarioResponse.chokepointConfidence',
   'IntelligenceService.openapi.json:ComputeEnergyShockScenarioResponse.chokepointId',
@@ -33,7 +29,6 @@ const LEGACY_HIGH_RISK_DESCRIPTION_GAPS = new Set([
   'IntelligenceService.openapi.json:ComputeEnergyShockScenarioResponse.limitations',
   'IntelligenceService.openapi.json:ComputeEnergyShockScenarioResponse.liveFlowRatio',
   'IntelligenceService.openapi.json:ComputeEnergyShockScenarioResponse.portwatchCoverage',
-  'IntelligenceService.openapi.json:GetRegionalBriefRequest.regionId',
   'IntelligenceService.openapi.json:RegionalBrief.keyDevelopments',
   'IntelligenceService.openapi.json:RegionalBrief.model',
   'IntelligenceService.openapi.json:RegionalBrief.provider',
@@ -78,7 +73,6 @@ const LEGACY_HIGH_RISK_DESCRIPTION_GAPS = new Set([
   'ResilienceService.openapi.json:GetResilienceRuntimeManifestResponse.generatedAt',
   'ResilienceService.openapi.json:GetResilienceRuntimeManifestResponse.manifestVersion',
   'ResilienceService.openapi.json:GetResilienceRuntimeManifestResponse.vercelEnv',
-  'ResilienceService.openapi.json:GetResilienceScoreRequest.countryCode',
   'ResilienceService.openapi.json:GetResilienceScoreResponse.baselineScore',
   'ResilienceService.openapi.json:GetResilienceScoreResponse.change30d',
   'ResilienceService.openapi.json:GetResilienceScoreResponse.countryCode',
@@ -135,7 +129,6 @@ const LEGACY_HIGH_RISK_DESCRIPTION_GAPS = new Set([
   'SupplyChainService.openapi.json:ChokepointInfo.lat',
   'SupplyChainService.openapi.json:ChokepointInfo.lon',
   'SupplyChainService.openapi.json:ChokepointInfo.name',
-  'SupplyChainService.openapi.json:GetChokepointHistoryRequest.chokepointId',
   'SupplyChainService.openapi.json:GetChokepointHistoryResponse.chokepointId',
   'SupplyChainService.openapi.json:GetChokepointHistoryResponse.fetchedAt',
   'SupplyChainService.openapi.json:GetChokepointStatusResponse.fetchedAt',
@@ -195,6 +188,35 @@ function collectHighRiskProperties() {
   return rows;
 }
 
+const HTTP_OPERATION_KEYS = new Set(['get', 'put', 'post', 'delete', 'patch', 'options', 'head', 'trace']);
+
+function parameterDescriptionText(parameter) {
+  if (typeof parameter.description === 'string') return parameter.description.trim();
+  return '';
+}
+
+function collectQueryParameters() {
+  const rows = [];
+  for (const file of generatedJsonSpecs()) {
+    const spec = JSON.parse(readFileSync(resolve(apiDir, file), 'utf8'));
+    for (const [route, pathItem] of Object.entries(spec.paths ?? {})) {
+      const pathParameters = Array.isArray(pathItem?.parameters) ? pathItem.parameters : [];
+      for (const [method, operation] of Object.entries(pathItem ?? {})) {
+        if (!HTTP_OPERATION_KEYS.has(method)) continue;
+        const operationParameters = Array.isArray(operation?.parameters) ? operation.parameters : [];
+        for (const parameter of [...pathParameters, ...operationParameters]) {
+          if (parameter?.in !== 'query') continue;
+          rows.push({
+            key: file + ':' + method.toUpperCase() + ' ' + route + ' ?' + parameter.name,
+            description: parameterDescriptionText(parameter),
+          });
+        }
+      }
+    }
+  }
+  return rows;
+}
+
 describe('generated OpenAPI description guard for high-risk documentation claims', () => {
   it('requires high-risk public fields to have generated descriptions or an explicit legacy-gap entry', () => {
     const actualGaps = collectHighRiskProperties()
@@ -229,6 +251,19 @@ describe('generated OpenAPI description guard for high-risk documentation claims
       placeholders,
       [],
       `High-risk generated OpenAPI fields have placeholder descriptions:\n${placeholders.join('\n')}`,
+    );
+  });
+
+  it('requires every generated query parameter to have a description', () => {
+    const missingDescriptions = collectQueryParameters()
+      .filter((row) => !row.description)
+      .map((row) => row.key)
+      .sort();
+
+    assert.deepEqual(
+      missingDescriptions,
+      [],
+      'Generated OpenAPI query parameters are missing descriptions:\n' + missingDescriptions.join('\n'),
     );
   });
 });

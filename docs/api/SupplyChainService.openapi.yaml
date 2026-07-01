@@ -66,6 +66,7 @@ paths:
             parameters:
                 - name: chokepointId
                   in: query
+                  description: Chokepoint identifier whose transit history should be returned.
                   required: false
                   schema:
                     type: string
@@ -188,6 +189,7 @@ paths:
             parameters:
                 - name: chokepointId
                   in: query
+                  description: Chokepoint identifier to evaluate for bypass options.
                   required: false
                   schema:
                     type: string
@@ -233,11 +235,13 @@ paths:
             parameters:
                 - name: iso2
                   in: query
+                  description: ISO 3166-1 alpha-2 country code for the importing country.
                   required: false
                   schema:
                     type: string
                 - name: chokepointId
                   in: query
+                  description: Chokepoint identifier to model as disrupted.
                   required: false
                   schema:
                     type: string
@@ -276,6 +280,7 @@ paths:
             parameters:
                 - name: iso2
                   in: query
+                  description: ISO 3166-1 alpha-2 country code whose strategic products should be returned.
                   required: false
                   schema:
                     type: string
@@ -310,11 +315,13 @@ paths:
             parameters:
                 - name: iso2
                   in: query
+                  description: ISO 3166-1 alpha-2 country code for the importing country.
                   required: false
                   schema:
                     type: string
                 - name: chokepointId
                   in: query
+                  description: Chokepoint identifier to model as disrupted.
                   required: false
                   schema:
                     type: string
@@ -354,6 +361,7 @@ paths:
             parameters:
                 - name: iso2
                   in: query
+                  description: ISO 3166-1 alpha-2 country code whose sector dependency should be analyzed.
                   required: false
                   schema:
                     type: string
@@ -397,11 +405,13 @@ paths:
             parameters:
                 - name: fromIso2
                   in: query
+                  description: ISO 3166-1 alpha-2 origin country code for the trade lane.
                   required: false
                   schema:
                     type: string
                 - name: toIso2
                   in: query
+                  description: ISO 3166-1 alpha-2 destination country code for the trade lane.
                   required: false
                   schema:
                     type: string
@@ -445,16 +455,19 @@ paths:
             parameters:
                 - name: fromIso2
                   in: query
+                  description: ISO 3166-1 alpha-2 origin country code for the route.
                   required: false
                   schema:
                     type: string
                 - name: toIso2
                   in: query
+                  description: ISO 3166-1 alpha-2 destination country code for the route.
                   required: false
                   schema:
                     type: string
                 - name: hs2
                   in: query
+                  description: HS2 chapter code for the product sector on the route.
                   required: false
                   schema:
                     type: string
@@ -526,6 +539,7 @@ paths:
             parameters:
                 - name: pipelineId
                   in: query
+                  description: Pipeline identifier to load with full evidence details.
                   required: false
                   schema:
                     type: string
@@ -601,6 +615,7 @@ paths:
             parameters:
                 - name: facilityId
                   in: query
+                  description: Storage facility identifier to load with full evidence details.
                   required: false
                   schema:
                     type: string
@@ -685,6 +700,7 @@ paths:
             parameters:
                 - name: shortageId
                   in: query
+                  description: Fuel-shortage identifier to load with full evidence details.
                   required: false
                   schema:
                     type: string
@@ -1053,6 +1069,7 @@ components:
             properties:
                 chokepointId:
                     type: string
+                    description: Chokepoint identifier whose transit history should be returned.
             required:
                 - chokepointId
             description: |-
@@ -1232,6 +1249,7 @@ components:
             properties:
                 chokepointId:
                     type: string
+                    description: Chokepoint identifier to evaluate for bypass options.
                 cargoType:
                     type: string
                     description: 'container | tanker | bulk | roro  (default: "container")'
@@ -1326,8 +1344,10 @@ components:
                 iso2:
                     type: string
                     pattern: ^[A-Z]{2}$
+                    description: ISO 3166-1 alpha-2 country code for the importing country.
                 chokepointId:
                     type: string
+                    description: Chokepoint identifier to model as disrupted.
                 hs2:
                     type: string
                     description: 'HS2 chapter (default: "27")'
@@ -1384,6 +1404,7 @@ components:
                 iso2:
                     type: string
                     pattern: ^[A-Z]{2}$
+                    description: ISO 3166-1 alpha-2 country code whose strategic products should be returned.
             required:
                 - iso2
         GetCountryProductsResponse:
@@ -1435,8 +1456,10 @@ components:
                 iso2:
                     type: string
                     pattern: ^[A-Z]{2}$
+                    description: ISO 3166-1 alpha-2 country code for the importing country.
                 chokepointId:
                     type: string
+                    description: Chokepoint identifier to model as disrupted.
                 closureDays:
                     type: integer
                     format: int32
@@ -1531,6 +1554,7 @@ components:
                 iso2:
                     type: string
                     pattern: ^[A-Z]{2}$
+                    description: ISO 3166-1 alpha-2 country code whose sector dependency should be analyzed.
                 hs2:
                     type: string
                     description: HS2 chapter code, e.g. "27" (mineral fuels), "85" (electronics)
@@ -1583,9 +1607,11 @@ components:
                 fromIso2:
                     type: string
                     pattern: ^[A-Z]{2}$
+                    description: ISO 3166-1 alpha-2 origin country code for the trade lane.
                 toIso2:
                     type: string
                     pattern: ^[A-Z]{2}$
+                    description: ISO 3166-1 alpha-2 destination country code for the trade lane.
                 hs2:
                     type: string
                     description: HS2 chapter code, e.g. "27", "85"
@@ -1711,11 +1737,14 @@ components:
                 fromIso2:
                     type: string
                     pattern: ^[A-Z]{2}$
+                    description: ISO 3166-1 alpha-2 origin country code for the route.
                 toIso2:
                     type: string
                     pattern: ^[A-Z]{2}$
+                    description: ISO 3166-1 alpha-2 destination country code for the route.
                 hs2:
                     type: string
+                    description: HS2 chapter code for the product sector on the route.
             required:
                 - fromIso2
                 - toIso2
@@ -1908,6 +1937,7 @@ components:
             properties:
                 pipelineId:
                     type: string
+                    description: Pipeline identifier to load with full evidence details.
             required:
                 - pipelineId
             description: |-
@@ -2096,6 +2126,7 @@ components:
             properties:
                 facilityId:
                     type: string
+                    description: Storage facility identifier to load with full evidence details.
             required:
                 - facilityId
             description: |-
@@ -2248,6 +2279,7 @@ components:
             properties:
                 shortageId:
                     type: string
+                    description: Fuel-shortage identifier to load with full evidence details.
             required:
                 - shortageId
             description: |-

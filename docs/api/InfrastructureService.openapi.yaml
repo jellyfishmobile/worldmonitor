@@ -178,12 +178,14 @@ paths:
             parameters:
                 - name: lat
                   in: query
+                  description: Latitude of the point to reverse geocode.
                   required: false
                   schema:
                     type: number
                     format: double
                 - name: lon
                   in: query
+                  description: Longitude of the point to reverse geocode.
                   required: false
                   schema:
                     type: number
@@ -223,6 +225,7 @@ paths:
                     type: string
                 - name: keys
                   in: query
+                  description: Specific bootstrap cache keys to fetch when tier is not sufficient.
                   required: false
                   style: form
                   explode: true
@@ -687,9 +690,11 @@ components:
                 lat:
                     type: number
                     format: double
+                    description: Latitude of the point to reverse geocode.
                 lon:
                     type: number
                     format: double
+                    description: Longitude of the point to reverse geocode.
             description: ReverseGeocodeRequest parameters for coordinate-to-address lookups.
         ReverseGeocodeResponse:
             type: object
@@ -717,6 +722,7 @@ components:
                     type: array
                     items:
                         type: string
+                        description: Specific bootstrap cache keys to fetch when tier is not sufficient.
             description: GetBootstrapDataRequest parameters for multi-key fetching.
         GetBootstrapDataResponse:
             type: object
