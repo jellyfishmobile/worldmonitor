@@ -5,10 +5,11 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { load as loadYaml } from 'js-yaml';
 
-// Guards the API security contract injected by
-// scripts/openapi-inject-security.mjs (umbrella #4599, root cause #1). The
-// sebuf generator emits no auth metadata, so if a regenerate lands without the
-// post-generation injection step, these assertions fail and flag the drop.
+// Guards the API contracts injected by the OpenAPI post-generation scripts:
+// auth/security (scripts/openapi-inject-security.mjs, #4599 root cause #1) and
+// required query/body fields (scripts/openapi-inject-required.mjs, #4604 / #4599
+// root cause #3). If a regenerate lands without either injection step, these
+// assertions fail and flag the drop.
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const apiDir = resolve(root, 'docs/api');
@@ -76,6 +77,56 @@ function assertSchemeFields(schemes, expected, label) {
     assert.ok(
       !String(schemes[name].description ?? '').includes('relay shared secret'),
       `${label}: ${name}.description must not advertise internal relay credentials`,
+    );
+  }
+}
+
+function toSnakeName(jsonName) {
+  return jsonName.replace(/[A-Z]/g, (ch) => `_${ch.toLowerCase()}`);
+}
+
+function requestSchemaForOperation(spec, op) {
+  const simpleName = `${op.operationId ?? ''}Request`;
+  const schemas = spec.components?.schemas ?? {};
+  if (schemas[simpleName]) return { name: simpleName, schema: schemas[simpleName] };
+  const suffix = `_${simpleName}`;
+  const matches = Object.keys(schemas).filter((name) => name.endsWith(suffix));
+  assert.ok(matches.length <= 1, `${op.operationId}: ambiguous request schema matches: ${matches.join(', ')}`);
+  return matches.length === 1 ? { name: matches[0], schema: schemas[matches[0]] } : null;
+}
+
+function matchingSchemaProperty(schema, paramName) {
+  const props = Object.keys(schema?.properties ?? {});
+  return props.find((key) => key === paramName || toSnakeName(key) === paramName) ?? null;
+}
+
+function queryRequiredContradictions(spec, label) {
+  const failures = [];
+  for (const [path, ops] of Object.entries(spec.paths ?? {})) {
+    for (const [method, op] of Object.entries(ops ?? {})) {
+      if (!HTTP_METHODS.has(method) || !op || typeof op !== 'object') continue;
+      const requestSchema = requestSchemaForOperation(spec, op);
+      const required = new Set(requestSchema?.schema?.required ?? []);
+      if (required.size === 0) continue;
+      for (const param of op.parameters ?? []) {
+        if (param?.in !== 'query') continue;
+        const property = matchingSchemaProperty(requestSchema.schema, param.name);
+        if (property && required.has(property) && param.required !== true) {
+          failures.push(`${label}: ${method.toUpperCase()} ${path} query ${param.name} is required by ${requestSchema.name}.${property} but parameter.required is ${param.required}`);
+        }
+      }
+    }
+  }
+  return failures;
+}
+
+function assertSchemaRequires(spec, schemaName, fields, label) {
+  const schema = spec.components?.schemas?.[schemaName];
+  assert.ok(schema, `${label}: missing ${schemaName}`);
+  for (const field of fields) {
+    assert.ok(
+      Array.isArray(schema.required) && schema.required.includes(field),
+      `${label}: ${schemaName}.required must include ${field}`,
     );
   }
 }
@@ -155,4 +206,51 @@ describe('OpenAPI security contract', () => {
     const schemes = bundle.components?.securitySchemes ?? {};
     assertSchemeFields(schemes, API_KEY_SCHEMES, 'bundle');
   });
+
+  it('propagates request-schema required fields to matching query parameters', () => {
+    const failures = [];
+    for (const file of serviceSpecs) {
+      const jsonSpec = JSON.parse(readFileSync(resolve(apiDir, file), 'utf8'));
+      failures.push(...queryRequiredContradictions(jsonSpec, file));
+
+      const yamlFile = file.replace(/\.json$/, '.yaml');
+      const yamlSpec = loadYaml(readFileSync(resolve(apiDir, yamlFile), 'utf8'));
+      failures.push(...queryRequiredContradictions(yamlSpec, yamlFile));
+    }
+
+    const bundle = loadYaml(readFileSync(resolve(apiDir, 'worldmonitor.openapi.yaml'), 'utf8'));
+    failures.push(...queryRequiredContradictions(bundle, 'worldmonitor.openapi.yaml'));
+
+    assert.deepEqual(failures, []);
+  });
+
+  it('keeps issue #4604 runtime-required request fields represented in schemas', () => {
+    const cases = [
+      {
+        file: 'ConsumerPricesService.openapi.json',
+        schema: 'ListConsumerPriceMoversRequest',
+        fields: ['limit'],
+      },
+      {
+        file: 'LeadsService.openapi.json',
+        schema: 'SubmitContactRequest',
+        fields: ['email', 'name', 'organization', 'phone', 'turnstileToken'],
+      },
+      {
+        file: 'LeadsService.openapi.json',
+        schema: 'RegisterInterestRequest',
+        fields: ['email', 'turnstileToken'],
+      },
+    ];
+
+    for (const { file, schema, fields } of cases) {
+      const jsonSpec = JSON.parse(readFileSync(resolve(apiDir, file), 'utf8'));
+      assertSchemaRequires(jsonSpec, schema, fields, file);
+
+      const yamlFile = file.replace(/\.json$/, '.yaml');
+      const yamlSpec = loadYaml(readFileSync(resolve(apiDir, yamlFile), 'utf8'));
+      assertSchemaRequires(yamlSpec, schema, fields, yamlFile);
+    }
+  });
+
 });
