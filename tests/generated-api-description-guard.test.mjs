@@ -265,5 +265,16 @@ describe('generated OpenAPI description guard for high-risk documentation claims
       [],
       'Generated OpenAPI query parameters are missing descriptions:\n' + missingDescriptions.join('\n'),
     );
+
+    const placeholders = collectQueryParameters()
+      .filter((row) => row.description && MISLEADING_DESCRIPTION_PATTERNS.some((pattern) => pattern.test(row.description)))
+      .map((row) => row.key + ': ' + row.description)
+      .sort();
+
+    assert.deepEqual(
+      placeholders,
+      [],
+      'Generated OpenAPI query parameters have placeholder descriptions:\n' + placeholders.join('\n'),
+    );
   });
 });

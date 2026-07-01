@@ -11,7 +11,7 @@ message ComputeEnergyShockScenarioRequest {
   // Percent of chokepoint flow disrupted, from 0 to 100.
   int32  disruption_pct = 3 [(sebuf.http.query) = {name: "disruption_pct"}];
   // Fuel mode to model: "oil", "gas", or "both". Defaults to "oil".
-  string fuel_mode      = 4 [(sebuf.http.query) = {name: "fuel_mode"}]; // "oil"|"gas"|"both", default "oil"
+  string fuel_mode      = 4 [(sebuf.http.query) = {name: "fuel_mode"}];
 }
 
 message ProductImpact {
