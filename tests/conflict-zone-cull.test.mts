@@ -11,8 +11,13 @@ import {
   geometryBounds,
   isWorldViewport,
   padViewport,
+  SIMPLIFY_ZOOM_THRESHOLD,
+  simplifyGeometry,
+  simplifyRing,
   viewportCacheKey,
+  zoomToSimplifyTolerance,
 } from '../src/components/map/conflict-zone-cull.ts';
+import type { Position } from 'geojson';
 
 function polygon(id: string, bounds: BBox): BoundedFeature {
   const [w, s, e, n] = bounds;
@@ -131,5 +136,78 @@ describe('viewportCacheKey (#4561 U1)', () => {
   it('collapses all world/antimeridian viewports to a per-zoom world key', () => {
     assert.equal(viewportCacheKey([-170, -80, 170, 80], 2), 'world:2');
     assert.equal(viewportCacheKey([170, -10, -170, 10], 2), 'world:2');
+  });
+});
+
+// ── U2: low-zoom simplification ────────────────────────────────────────────────
+
+/** A closed ring densely sampled along a circle (many near-collinear vertices). */
+function denseCircle(cx: number, cy: number, r: number, n: number): Position[] {
+  const pts: Position[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = (2 * Math.PI * i) / n;
+    pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+  }
+  pts.push(pts[0]); // close
+  return pts;
+}
+
+const pointKey = (p: Position): string => `${p[0]},${p[1]}`;
+
+describe('zoomToSimplifyTolerance (#4561 U2)', () => {
+  it('is monotonic decreasing and zero at/above the threshold', () => {
+    const t0 = zoomToSimplifyTolerance(0);
+    const t2 = zoomToSimplifyTolerance(2);
+    const t3 = zoomToSimplifyTolerance(3);
+    assert.ok(t0 > t2 && t2 > t3, 'coarser at lower zoom');
+    assert.equal(zoomToSimplifyTolerance(SIMPLIFY_ZOOM_THRESHOLD), 0, 'no simplify at threshold');
+    assert.equal(zoomToSimplifyTolerance(8), 0, 'no simplify when zoomed in');
+    assert.equal(zoomToSimplifyTolerance(Number.NaN), 0);
+  });
+});
+
+describe('simplifyRing (#4561 U2)', () => {
+  it('materially reduces a high-vertex ring while preserving closure and using only input vertices', () => {
+    const ring = denseCircle(0, 0, 10, 200); // 201 points incl. closure
+    const inputKeys = new Set(ring.map(pointKey));
+    const simplified = simplifyRing(ring, 0.5);
+    assert.ok(simplified.length < ring.length * 0.5, `materially fewer vertices (${simplified.length} < ${ring.length})`);
+    assert.ok(simplified.length >= 4, 'still a valid ring');
+    assert.deepEqual(simplified[0], simplified[simplified.length - 1], 'ring stays closed');
+    // RDP only removes vertices — every output point came from the input (no new geometry).
+    for (const p of simplified) assert.ok(inputKeys.has(pointKey(p)), 'output vertex is from the input');
+  });
+
+  it('leaves a low-vertex ring unchanged (no over-simplification)', () => {
+    const square: Position[] = [[0, 0], [4, 0], [4, 4], [0, 4], [0, 0]];
+    assert.deepEqual(simplifyRing(square, 0.5), square);
+  });
+
+  it('is a passthrough at tolerance 0', () => {
+    const ring = denseCircle(0, 0, 5, 50);
+    assert.equal(simplifyRing(ring, 0), ring);
+  });
+});
+
+describe('simplifyGeometry (#4561 U2)', () => {
+  it('simplifies every ring of a MultiPolygon and preserves ring/polygon counts', () => {
+    const poly = [denseCircle(0, 0, 10, 120)];
+    const geom = { type: 'MultiPolygon' as const, coordinates: [poly, [denseCircle(50, 50, 8, 120)]] };
+    const out = simplifyGeometry(geom, 0.5);
+    assert.equal(out.type, 'MultiPolygon');
+    if (out.type !== 'MultiPolygon') return;
+    assert.equal(out.coordinates.length, 2, 'polygon count preserved');
+    assert.equal(out.coordinates[0].length, 1, 'ring count preserved');
+    assert.ok(out.coordinates[0][0].length < geom.coordinates[0][0].length, 'vertices reduced');
+    // bounds are preserved within tolerance (shape not grossly distorted)
+    const before = geometryBounds(geom);
+    const after = geometryBounds(out);
+    assert.ok(before && after);
+    for (let i = 0; i < 4; i++) assert.ok(Math.abs((before as BBox)[i] - (after as BBox)[i]) <= 0.5);
+  });
+
+  it('returns non-polygon geometry untouched', () => {
+    const point = { type: 'Point' as const, coordinates: [1, 2] };
+    assert.equal(simplifyGeometry(point, 0.5), point);
   });
 });

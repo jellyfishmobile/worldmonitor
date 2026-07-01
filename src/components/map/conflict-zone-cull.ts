@@ -13,7 +13,7 @@
  * polygon itself → over-inclusion, never under-inclusion), pads the viewport,
  * and never culls at world/low zoom or across the antimeridian.
  */
-import type { Feature, Geometry } from 'geojson';
+import type { Feature, Geometry, Position } from 'geojson';
 
 /** [west, south, east, north] in degrees. */
 export type BBox = [number, number, number, number];
@@ -128,4 +128,125 @@ export function viewportCacheKey(viewport: BBox, zoom: number): string {
   const stepLat = Math.max((north - south) / 4, 0.01);
   const q = (v: number, step: number): string => (Math.round(v / step) * step).toFixed(3);
   return `${Math.round(zoom)}:${q(west, stepLon)}:${q(south, stepLat)}:${q(east, stepLon)}:${q(north, stepLat)}`;
+}
+
+// ── U2: low-zoom geometry simplification backstop ──────────────────────────────
+// At world/low zoom the cull can't reduce the zone count (everything is visible),
+// so the vertex-heavy country multipolygons still dominate tessellation. Below a
+// zoom threshold we RDP-simplify the polygon rings — sub-pixel detail there is
+// invisible — bounding the vertex count while keeping every zone present (KTD3).
+
+/** Zoom at/above which no simplification runs (zoomed in → detail matters, cull already helps). */
+export const SIMPLIFY_ZOOM_THRESHOLD = 4;
+/** Max RDP tolerance (deg) applied at the lowest zoom. ~1 world-view pixel at typical widths. */
+export const SIMPLIFY_MAX_TOLERANCE_DEG = 0.5;
+
+// Coordinate accessors: a GeoJSON Position always carries [lon, lat]; the `?? 0`
+// only guards the (never-valid) missing-index case that noUncheckedIndexedAccess
+// forces us to consider — it never fires for real data.
+const lon = (p: Position): number => p[0] ?? 0;
+const lat = (p: Position): number => p[1] ?? 0;
+const samePoint = (a: Position, b: Position): boolean => lon(a) === lon(b) && lat(a) === lat(b);
+
+/** Perpendicular distance from point p to the infinite line through a-b. */
+function perpendicularDistance(p: Position, a: Position, b: Position): number {
+  const dx = lon(b) - lon(a);
+  const dy = lat(b) - lat(a);
+  const denom = Math.hypot(dx, dy);
+  if (denom === 0) return Math.hypot(lon(p) - lon(a), lat(p) - lat(a));
+  return Math.abs(dy * lon(p) - dx * lat(p) + lon(b) * lat(a) - lat(b) * lon(a)) / denom;
+}
+
+/** Ramer–Douglas–Peucker on an open polyline: keeps both endpoints, drops points within tolerance. */
+function rdp(points: Position[], tolerance: number): Position[] {
+  if (points.length <= 2) return points.slice();
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (!first || !last) return points.slice();
+
+  let index = 0;
+  let maxDist = 0;
+  for (let i = 1; i < points.length - 1; i++) {
+    const pt = points[i];
+    if (!pt) continue;
+    const d = perpendicularDistance(pt, first, last);
+    if (d > maxDist) {
+      maxDist = d;
+      index = i;
+    }
+  }
+  if (maxDist <= tolerance) return [first, last];
+  const left = rdp(points.slice(0, index + 1), tolerance);
+  const right = rdp(points.slice(index), tolerance);
+  return left.slice(0, -1).concat(right);
+}
+
+/**
+ * Simplify a single closed ring with RDP, preserving closure and polygon
+ * validity. The ring is split at its farthest vertex so RDP runs on two open
+ * polylines (a closed ring's p0==pn baseline is degenerate). Output points are a
+ * strict subset of the input (RDP never moves or adds a vertex), so no new
+ * geometry is introduced. Falls back to the original ring if simplification
+ * would drop below a valid polygon (< 4 points incl. closure) or not reduce it.
+ */
+export function simplifyRing(ring: Position[], tolerance: number): Position[] {
+  if (tolerance <= 0 || ring.length <= 5) return ring;
+  const start = ring[0];
+  const finish = ring[ring.length - 1];
+  if (!start || !finish) return ring;
+
+  const open = samePoint(start, finish) ? ring.slice(0, -1) : ring.slice();
+  const anchor = open[0];
+  if (open.length <= 4 || !anchor) return ring;
+
+  let far = 0;
+  let farDist = -1;
+  for (let i = 1; i < open.length; i++) {
+    const pt = open[i];
+    if (!pt) continue;
+    const d = Math.hypot(lon(pt) - lon(anchor), lat(pt) - lat(anchor));
+    if (d > farDist) {
+      farDist = d;
+      far = i;
+    }
+  }
+
+  const first = rdp(open.slice(0, far + 1), tolerance);
+  const second = rdp([...open.slice(far), anchor], tolerance);
+  const merged = [...first.slice(0, -1), ...second.slice(0, -1)];
+  const head = merged[0];
+  if (merged.length < 4 || !head) return ring;
+
+  const result = [...merged, head];
+  return result.length < ring.length ? result : ring;
+}
+
+/** Apply {@link simplifyRing} to every ring of a Polygon/MultiPolygon; other geometry is returned as-is. */
+export function simplifyGeometry(geometry: Geometry, tolerance: number): Geometry {
+  if (tolerance <= 0) return geometry;
+  if (geometry.type === 'Polygon') {
+    return { type: 'Polygon', coordinates: geometry.coordinates.map((r) => simplifyRing(r, tolerance)) };
+  }
+  if (geometry.type === 'MultiPolygon') {
+    return {
+      type: 'MultiPolygon',
+      coordinates: geometry.coordinates.map((poly) => poly.map((r) => simplifyRing(r, tolerance))),
+    };
+  }
+  return geometry;
+}
+
+/**
+ * Monotonic zoom → RDP tolerance (deg). Zero at/above the threshold (no
+ * simplification when zoomed in); ramps linearly to {@link SIMPLIFY_MAX_TOLERANCE_DEG}
+ * as zoom drops toward 0, so lower zoom = coarser simplification.
+ */
+export function zoomToSimplifyTolerance(
+  zoom: number,
+  threshold = SIMPLIFY_ZOOM_THRESHOLD,
+  maxTolerance = SIMPLIFY_MAX_TOLERANCE_DEG,
+): number {
+  if (!Number.isFinite(zoom) || zoom >= threshold) return 0;
+  const fraction = (threshold - Math.max(0, zoom)) / threshold;
+  return maxTolerance * fraction;
 }

@@ -159,7 +159,9 @@ import {
   type BoundedFeature,
   cullToViewport,
   geometryBounds,
+  simplifyGeometry,
   viewportCacheKey,
+  zoomToSimplifyTolerance,
 } from '@/components/map/conflict-zone-cull';
 import {
   createCountryClickGestureTracker,
@@ -2694,12 +2696,22 @@ export class DeckGLMap {
     const viewport: BBox = [
       mapBounds.getWest(), mapBounds.getSouth(), mapBounds.getEast(), mapBounds.getNorth(),
     ];
-    const key = viewportCacheKey(viewport, this.maplibreMap?.getZoom() ?? 2);
+    const zoom = this.maplibreMap?.getZoom() ?? 2;
+    const key = viewportCacheKey(viewport, zoom);
     if (key === this.conflictZoneViewportKey && this.conflictZoneGeoJson) {
       return this.conflictZoneGeoJson;
     }
 
-    this.conflictZoneGeoJson = { type: 'FeatureCollection', features: cullToViewport(bounded, viewport) };
+    let features = cullToViewport(bounded, viewport);
+    // U2: at world/low zoom the cull can't reduce the count, so RDP-simplify the
+    // (invisible-at-this-zoom) sub-pixel vertices to bound tessellation. New
+    // geometry objects — never mutate the shared country geometry.
+    const tolerance = zoomToSimplifyTolerance(zoom);
+    if (tolerance > 0) {
+      features = features.map((f) => ({ ...f, geometry: simplifyGeometry(f.geometry, tolerance) }));
+    }
+
+    this.conflictZoneGeoJson = { type: 'FeatureCollection', features };
     this.conflictZoneViewportKey = key;
     return this.conflictZoneGeoJson;
   }
