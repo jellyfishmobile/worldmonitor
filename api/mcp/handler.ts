@@ -228,7 +228,13 @@ export async function mcpHandler(
 
   // Origin validation: allow claude.ai/claude.com web clients; allow absent origin (desktop/CLI)
   const origin = req.headers.get('Origin');
-  if (origin && origin !== 'https://claude.ai' && origin !== 'https://claude.com') {
+  // Self-host (stonebridge fork): the docker sidecar injects its own loopback
+  // Origin on locally-dispatched requests (local-api-server.mjs sets
+  // `Origin: http://127.0.0.1:<port>`), which the allowlist below would 403.
+  // A real browser never sends a loopback Origin to a remote host, so
+  // accepting it keeps the public surface unchanged.
+  const isLoopbackOrigin = origin != null && /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin);
+  if (origin && !isLoopbackOrigin && origin !== 'https://claude.ai' && origin !== 'https://claude.com') {
     return new Response('Forbidden', { status: 403, headers: withMcpNoStore(corsHeaders) });
   }
 
