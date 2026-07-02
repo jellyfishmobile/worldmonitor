@@ -129,7 +129,12 @@ export async function resolveAuthContext(
   resourceMetadataUrl: string,
   corsHeaders: Record<string, string>,
 ): Promise<AuthResolution | AuthResolutionRejected> {
-  const authHeader = req.headers.get('Authorization') ?? '';
+  // Self-host (stonebridge fork): the docker nginx injects the INTERNAL
+  // sidecar bearer on every /api/ hop (docker/nginx.conf), which would shadow
+  // an explicit X-WorldMonitor-Key and dead-end in resolveBearerToContext
+  // (no OAuth infra when self-hosted). An explicit key header wins.
+  const explicitKey = req.headers.get('X-WorldMonitor-Key') ?? '';
+  const authHeader = (explicitKey ? '' : req.headers.get('Authorization')) ?? '';
   if (authHeader.startsWith('Bearer ')) {
     const token = authHeader.slice(7).trim();
     let context: McpAuthContext | null;
