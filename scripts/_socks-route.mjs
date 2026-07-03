@@ -72,7 +72,11 @@ if (PROXY && HOSTS.length) {
       })
     })
 
-    const { Agent } = await import('undici')
+    // Use the INSTALLED undici's own fetch for proxied requests — Node's global
+    // fetch (its bundled undici) rejects a dispatcher from a different undici
+    // version ("invalid onRequestStart method"). Agent + fetch from the same
+    // package are compatible; direct requests keep Node's global fetch.
+    const { Agent, fetch: undiciFetch } = await import('undici')
     const proxyDispatcher = new Agent({
       connect(opts, cb) {
         const port = Number(opts.port) || (opts.protocol === 'http:' ? 80 : 443)
@@ -93,7 +97,7 @@ if (PROXY && HOSTS.length) {
       let url
       try { url = new URL(typeof input === 'string' ? input : (input && input.url) || String(input)) } catch { return origFetch(input, init) }
       if (!matches(url.hostname)) return origFetch(input, init)
-      return origFetch(input, { ...init, dispatcher: proxyDispatcher })
+      return undiciFetch(input, { ...init, dispatcher: proxyDispatcher })
     }
     console.log(`[socks-route] proxying ${HOSTS.join(', ')} via ${proxyHost}:${proxyPort}`)
   } catch (e) {
