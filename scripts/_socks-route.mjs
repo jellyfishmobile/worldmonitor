@@ -7,6 +7,7 @@
 // error leaves global fetch untouched so the seeder never breaks.
 import net from 'node:net'
 import tls from 'node:tls'
+import dns from 'node:dns/promises'
 
 const PROXY = process.env.SOCKS_PROXY_URL || ''
 const HOSTS = (process.env.SOCKS_PROXY_HOSTS || '')
@@ -21,15 +22,17 @@ if (PROXY && HOSTS.length) {
     const pass = decodeURIComponent(pu.password || '')
     const matches = (host) => { const h = String(host).toLowerCase(); return HOSTS.some((t) => h === t || h.endsWith('.' + t)) }
 
-    // Establish a SOCKS5 tunnel to destHost:destPort (domain ATYP, user/pass or none).
-    const socks5Connect = (destHost, destPort) => new Promise((resolve, reject) => {
+    // Establish a SOCKS5 tunnel to destHost:destPort. The proxy has NO DNS —
+    // resolve to IPv4 client-side and send ATYP=0x01 (domain ATYP is rejected
+    // with REP=1). TLS SNI keeps the original hostname (done by the caller).
+    const socks5Connect = (destIp, destPort) => new Promise((resolve, reject) => {
       const s = net.connect(proxyPort, proxyHost)
       let stage = 'greet'
       let buf = Buffer.alloc(0)
       const fail = (m) => { try { s.destroy() } catch {} reject(new Error(m)) }
       const sendConnect = () => {
-        const h = Buffer.from(destHost, 'ascii')
-        s.write(Buffer.concat([Buffer.from([0x05, 0x01, 0x00, 0x03, h.length]), h, Buffer.from([(destPort >> 8) & 0xff, destPort & 0xff])]))
+        const octets = destIp.split('.').map((n) => Number(n) & 0xff)
+        s.write(Buffer.concat([Buffer.from([0x05, 0x01, 0x00, 0x01, ...octets]), Buffer.from([(destPort >> 8) & 0xff, destPort & 0xff])]))
         stage = 'reply'
       }
       s.once('error', (e) => fail(`socks tcp: ${e.message}`))
@@ -73,7 +76,10 @@ if (PROXY && HOSTS.length) {
     const proxyDispatcher = new Agent({
       connect(opts, cb) {
         const port = Number(opts.port) || (opts.protocol === 'http:' ? 80 : 443)
-        socks5Connect(opts.hostname, port).then((raw) => {
+        const resolveIp = /^\d+\.\d+\.\d+\.\d+$/.test(opts.hostname)
+          ? Promise.resolve(opts.hostname)
+          : dns.resolve4(opts.hostname).then((ips) => { if (!ips.length) throw new Error('no A record'); return ips[0] })
+        resolveIp.then((ip) => socks5Connect(ip, port)).then((raw) => {
           if (opts.protocol === 'http:') { cb(null, raw); return }
           const tlsSock = tls.connect({ socket: raw, servername: opts.servername || opts.hostname, host: opts.hostname, port })
           tlsSock.once('secureConnect', () => cb(null, tlsSock))
