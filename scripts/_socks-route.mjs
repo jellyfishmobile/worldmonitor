@@ -36,7 +36,7 @@ if (PROXY && HOSTS.length) {
         stage = 'reply'
       }
       s.once('error', (e) => fail(`socks tcp: ${e.message}`))
-      s.setTimeout(15_000, () => fail('socks timeout'))
+      s.setTimeout(6_000, () => fail('socks timeout'))
       s.once('connect', () => {
         const methods = user ? [0x00, 0x02] : [0x00]
         s.write(Buffer.from([0x05, methods.length, ...methods]))
@@ -76,6 +76,19 @@ if (PROXY && HOSTS.length) {
     // fetch (its bundled undici) rejects a dispatcher from a different undici
     // version ("invalid onRequestStart method"). Agent + fetch from the same
     // package are compatible; direct requests keep Node's global fetch.
+    // The proxy fronts a pool of routers, some flaky (transient rep=1 / connect
+    // fail / timeout). A fresh TCP connection likely lands on a DIFFERENT router,
+    // so retry-with-backoff hits a healthy one — the right client posture (the
+    // proxy has no quota; failures are reliability, not limits).
+    const socks5ConnectRetry = async (ip, port, attempts = 4) => {
+      let lastErr
+      for (let i = 0; i < attempts; i++) {
+        try { return await socks5Connect(ip, port) }
+        catch (e) { lastErr = e; if (i < attempts - 1) await new Promise((r) => setTimeout(r, 300 * (2 ** i))) }
+      }
+      throw lastErr
+    }
+
     const { Agent, fetch: undiciFetch } = await import('undici')
     const proxyDispatcher = new Agent({
       connect(opts, cb) {
@@ -83,7 +96,7 @@ if (PROXY && HOSTS.length) {
         const resolveIp = /^\d+\.\d+\.\d+\.\d+$/.test(opts.hostname)
           ? Promise.resolve(opts.hostname)
           : dns.resolve4(opts.hostname).then((ips) => { if (!ips.length) throw new Error('no A record'); return ips[0] })
-        resolveIp.then((ip) => socks5Connect(ip, port)).then((raw) => {
+        resolveIp.then((ip) => socks5ConnectRetry(ip, port)).then((raw) => {
           if (opts.protocol === 'http:') { cb(null, raw); return }
           const tlsSock = tls.connect({ socket: raw, servername: opts.servername || opts.hostname, host: opts.hostname, port })
           tlsSock.once('secureConnect', () => cb(null, tlsSock))
